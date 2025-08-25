@@ -4,7 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>BeLive ALPS Management Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" defer></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#f5f6fa;height:100vh;overflow:hidden}
@@ -337,17 +338,27 @@
 </div>
 
 <script>
-/* ------------------------- GLOBAL STATE ------------------------- */
-let currentPage='agents', selectedConversation=null, leadChart=null;
-let filterAgentId=null;
+/* =================== SAFE BOOTSTRAP =================== */
+(function safeBoot(){
+  const start = () => { try { initializeDashboard(); } catch (e) {
+      console.error('Init error:', e);
+      alert('A script error prevented the dashboard from starting. Check console for details.');
+  }};
+  if (document.readyState === 'complete') start();
+  else {
+    window.addEventListener('load', start);
+    document.addEventListener('DOMContentLoaded', () => setTimeout(start, 0));
+  }
+})();
 
-// Chat state
+/* ------------------------- GLOBAL STATE ------------------------- */
+let currentPage='agents', selectedConversation=null, leadChart=null, filterAgentId=null;
 let chatCurrentStep=0, chatUserResponses={}, chatAlpsScore=0;
 
-const PROPERTIES=[ "121 Residence","7 Tree Seven","Acacia Residence","Ampang","Ara Damansara","AraTre Residence","Armani SOHO","Arte Cheras","Astoria","Astoria Ampang","Austin Regency","Bandar Sri Permaisuri","Bora Residence","Bukit Jalil","Cheras","D'Cosmos","Duta Park","Emporis Kota Damansara","Epic Residence","Fairview Residence","HighPark Suites","Icon City","Kelana Jaya","Keramat","Kota Damansara","M Adora","M Vertica","Majestic Maxim","Marina Residence","Medini Signature","Meta City","MH Platinum 2","Mont Kiara","One Cochrane","Parc3","Petaling Jaya","Pinnacle","Pixel City Central","Platinum Splendor","Razak City Residences","Rica Residence","Sapphire Paradigm","Secoya Residence","Sentul","Seri Kembangan","Setapak","Sinaran","Sinaran Residence","Subang Jaya","Sungai Besi","Sunway Avila","Sunway Serene","The Andes","The Azure","The Azure Residences","The Birch","The OOAK","The PARC3","Trion KL","Unio Residence","Vertu Resort","Vista Sentul","Vivo Executive Apartment","Vivo Residence","Youth City" ];
+const PROPERTIES=[ "121 Residence","7 Tree Seven","Acacia Residence","Ampang","Ara Damansara","AraTre Residence","Armani SOHO","Arte Cheras","Astoria","Astoria Ampang","Austin Regency","Bandar Sri Permaisuri","Bora Residence","Bukit Jalil","Cheras","D'Cosmos","Duta Park","Emporis Kota Damansara","Epic Residence","Fairview Residence","HighPark Suites","Icon City","Kelana Jaya","Keramat","Kota Damansara","M Adora","M Vertica","Majestic Maxim","Marina Residence","Medini Signature","Meta City","MH Platinum 2","Mont Kiara","One Cochrane","Parc3","Petaling Jaya","Pinnacle","Pixel City Central","Platinum Splendor","Razak City Residences","Rica Residence","Sapphire Paradigm","Secoya Residence","Sentul","Seri Kembangan","Setapak","Sinaran","Sinaran Residence","Subang Jaya","Sungai Besi","Sunway Avila","Sunway Serene","The Andes","The Azure","The Azure Residences","The Birch","The OOAK","The PARC3","Trion KL","Unio KL","Vertu Resort","Vista Sentul","Vivo Executive Apartment","Vivo Residence","Youth City" ];
 const AREAS=["KL/Selangor","Perak","JB/Penang","Negeri Sembilan","Genting Highlands"];
 
-const questions=[
+const questions=[ /* same questions as before */ 
   {id:'area',text:"Hi! Welcome to BeLive. I'm here to help you find the perfect room. Let's start with the area you're interested in:",type:'select',options:AREAS,weight:15},
   {id:'property',text:'Great choice! Here are the available properties in your selected area:',type:'property_select',weight:10},
   {id:'budget',text:"What's your budget range for monthly rent?",type:'input',placeholder:'e.g., 800',weight:25},
@@ -362,51 +373,35 @@ const questions=[
   {id:'nationality',text:"What's your nationality?",type:'select',options:['Malaysian','Others'],weight:0}
 ];
 
-// App state
-const App={
-  agents:{
+const App={ agents:{
     agent1:{id:'agent1',name:'Sarah Chen',max:10,load:3,status:'available',queue:1,conversations:[],leadsToday:24},
     agent2:{id:'agent2',name:'Mike Johnson',max:10,load:8,status:'busy',queue:2,conversations:[],leadsToday:18},
     agent3:{id:'agent3',name:'Lisa Wong',max:10,load:5,status:'available',queue:3,conversations:[],leadsToday:15},
     agent4:{id:'agent4',name:'David Lim',max:10,load:0,status:'away',queue:4,conversations:[],leadsToday:12},
     agent5:{id:'agent5',name:'Jennifer Tan',max:10,load:2,status:'available',queue:5,conversations:[],leadsToday:9},
   },
-  leads:{},          // leadId -> {id, score, status, area, property, budget, assignedAgentId?}
-  conversations:{},  // convId -> {id, leadId, agentId, status: 'waiting_agent'|'ongoing', timers:{waitingSec,negativeSec,positiveSec}}
+  leads:{},
+  conversations:{},
   queueOrder:['agent1','agent2','agent3','agent4','agent5'],
 };
-
-// (Optional) seed a few conversations to see multiple rooms immediately
-(function seedDemo(){
-  const mkLead=(score,area,aid,waiting=true)=>{
+// seed demo
+(function seed(){
+  const make=(score,area,aid,waiting=true)=>{
     const id=`seed-${Math.random().toString(36).slice(2,7)}`;
     App.leads[id]={id,score,status:'ongoing',area,property:'—',budget:800,assignedAgentId:aid};
     const convId=`conv-${id}`;
     App.conversations[convId]={id:convId,leadId:id,agentId:aid,status:waiting?'waiting_agent':'ongoing',timers:{waitingSec:120+Math.floor(Math.random()*120),negativeSec:waiting?600:300,positiveSec:0}};
     const ag=App.agents[aid];ag.conversations.push(convId);ag.load=Math.min(ag.max,ag.load+1);
   };
-  mkLead(82,"KL/Selangor",'agent2',false);
-  mkLead(67,"KL/Selangor",'agent2',true);
-  mkLead(74,"Petaling Jaya",'agent3',false);
-  mkLead(58,"JB/Penang",'agent3',true);
+  make(82,"KL/Selangor",'agent2',false);
+  make(67,"KL/Selangor",'agent2',true);
+  make(74,"Petaling Jaya",'agent3',false);
+  make(58,"JB/Penang",'agent3',true);
 })();
 
 /* ------------------------- HELPERS ------------------------- */
-function getNextAssignableAgent(exclude=[]){
-  for(const id of App.queueOrder){
-    if(exclude.includes(id)) continue;
-    const a=App.agents[id]; if(!a) continue;
-    if(a.status!=='away' && a.load<a.max) return a;
-  }
-  return null;
-}
-
-function upsertLeadFromChat(finalScore,meta={}){
-  const id=`lead-${Date.now()}`;
-  App.leads[id]={id,score:Math.round(finalScore),status:'ongoing',...meta};
-  return id;
-}
-
+function getNextAssignableAgent(exclude=[]){for(const id of App.queueOrder){if(exclude.includes(id)) continue;const a=App.agents[id];if(a && a.status!=='away' && a.load<a.max) return a;}return null;}
+function upsertLeadFromChat(finalScore,meta={}){const id=`lead-${Date.now()}`;App.leads[id]={id,score:Math.round(finalScore),status:'ongoing',...meta};return id;}
 function assignLeadToAgent(leadId,agentId){
   const agent=App.agents[agentId]; const lead=App.leads[leadId]; if(!agent||!lead) return null;
   const convId=`conv-${leadId}`;
@@ -417,50 +412,36 @@ function assignLeadToAgent(leadId,agentId){
   renderAll();
   return convId;
 }
-
 function reassignConversation(convId){
   const conv=App.conversations[convId]; if(!conv) return;
-  const tried=[conv.agentId];
-  let next=getNextAssignableAgent(tried);
+  const tried=[conv.agentId]; let next=getNextAssignableAgent(tried);
   if(!next){const arr=Object.values(App.agents).filter(a=>a.status!=='away').sort((a,b)=>a.load-b.load);next=arr[0]||null;}
   if(!next) return;
-
-  const prev=App.agents[conv.agentId];
-  if(prev){prev.conversations=prev.conversations.filter(x=>x!==convId);prev.load=Math.max(0,prev.load-1);}
-
+  const prev=App.agents[conv.agentId]; if(prev){prev.conversations=prev.conversations.filter(x=>x!==convId);prev.load=Math.max(0,prev.load-1);}
   conv.agentId=next.id; conv.status='waiting_agent';
   conv.timers.waitingSec=5*60; conv.timers.negativeSec=10*60; conv.timers.positiveSec=0;
   if(!next.conversations.includes(convId)) next.conversations.push(convId);
   next.load=Math.min(next.max,next.load+1);
-
   alert('Conversation auto-reassigned to '+next.name);
   renderAll();
 }
-
 function markAgentReplied(convId){
   const conv=App.conversations[convId]; if(!conv) return;
   const wasWaiting=conv.status==='waiting_agent';
-  conv.status='ongoing';
-  conv.timers.negativeSec=10*60;
-  conv.timers.positiveSec=0;
-  if(wasWaiting){ // first reply → count as handled today
-    const ag=App.agents[conv.agentId];
-    ag.leadsToday+=1;
-  }
+  conv.status='ongoing'; conv.timers.negativeSec=10*60; conv.timers.positiveSec=0;
+  if(wasWaiting){App.agents[conv.agentId].leadsToday+=1;}
   renderAll();
 }
-
 const _breachShown=new Set();
 function showSlaBreachOnce(convId){
   if(_breachShown.has(convId)) return; _breachShown.add(convId);
-  const conv=App.conversations[convId]; if(!conv) return;
+  const conv=App.conversations[convId];
   document.getElementById('alertConversation').textContent=App.leads[conv.leadId]?.id||conv.id;
   document.getElementById('alertAgent').textContent=App.agents[conv.agentId]?.name||'-';
   document.getElementById('alertTime').textContent='+0:01';
-  document.getElementById('slaAlert').style.display='block';
+  const alertEl=document.getElementById('slaAlert'); if(alertEl) alertEl.style.display='block';
 }
-
-function mmss(sec){const m=Math.floor(sec/60);const s=(sec%60).toString().padStart(2,'0');return `${m}:${s}`;}
+function mmss(sec){const m=Math.floor(sec/60),s=(sec%60).toString().padStart(2,'0');return `${m}:${s}`;}
 
 /* ------------------------- RENDERERS ------------------------- */
 function renderAll(){renderLeads();renderSLAList();renderAgentCards();renderLiveBits();}
@@ -468,8 +449,8 @@ function renderLiveBits(){renderSLAClocks();renderAgentCapacityBars();}
 
 function renderLeads(){
   const ongoing=document.getElementById('ongoingLeads'), past=document.getElementById('pastLeads');
+  if(!ongoing||!past) return;
   const arr=Object.values(App.leads);
-
   const toCard=lead=>`
     <div class="lead-item ${lead.score>=70?'hot':(lead.score>=40?'warm':'cold')}" onclick="showLeadChart('${lead.id}')">
       <div class="lead-score ${lead.score>=70?'score-hot':(lead.score>=40?'score-warm':'score-cold')}">${lead.score}</div>
@@ -479,7 +460,6 @@ function renderLeads(){
         <div class="lead-timestamp">Updated: ${new Date().toLocaleTimeString()}</div>
       </div>
     </div>`;
-
   ongoing.innerHTML=arr.filter(l=>l.status==='ongoing').sort((a,b)=>b.score-a.score).map(toCard).join('');
   past.innerHTML=arr.filter(l=>l.status==='past').map(toCard).join('');
 }
@@ -488,10 +468,10 @@ function renderSLAList(){
   const container=document.getElementById('slaConversationsList');
   const title=document.getElementById('slaListTitle');
   const clearBtn=document.getElementById('clearFilterBtn');
+  if(!container) return;
   const convs=Object.values(App.conversations).filter(c=>!filterAgentId || c.agentId===filterAgentId);
-  title.textContent=filterAgentId ? `💬 Conversations • ${App.agents[filterAgentId].name} (${App.agents[filterAgentId].load}/${App.agents[filterAgentId].max})` : '💬 Active Conversations';
-  clearBtn.style.display=filterAgentId?'inline-block':'none';
-
+  if(title) title.textContent=filterAgentId ? `💬 Conversations • ${App.agents[filterAgentId].name} (${App.agents[filterAgentId].load}/${App.agents[filterAgentId].max})` : '💬 Active Conversations';
+  if(clearBtn) clearBtn.style.display=filterAgentId?'inline-block':'none';
   container.innerHTML = convs.map(c=>{
     const lead=App.leads[c.leadId],agent=App.agents[c.agentId];
     const waiting=c.status==='waiting_agent';
@@ -501,7 +481,6 @@ function renderSLAList(){
       ? `<div class="timer-negative">-${mmss(c.timers.waitingSec)}</div><div style="font-size:12px;">Initial response due</div>`
       : (neg>0?`<div class="timer-negative">-${mmss(neg)}</div><div style="font-size:12px;">Next response due</div>`
               : `<div class="timer-positive">+${mmss(pos)}</div><div style="font-size:12px;">SLA breached</div>`);
-
     return `
       <div class="conversation-item${warnClass}" onclick="openSLAChat('${c.id}')">
         <div style="display:flex;justify-content:space-between;align-items:start;">
@@ -514,44 +493,35 @@ function renderSLAList(){
         <div class="sla-timer">${timerChip}</div>
       </div>`;
   }).join('') || `<div style="padding:10px;color:#7f8c8d;">No conversations.</div>`;
-
   // stats
   const warning=convs.filter(c=>c.status==='waiting_agent' && c.timers.waitingSec<=120).length;
   const breach=convs.filter(c=>c.status==='ongoing' && c.timers.negativeSec===0).length;
   const ontime=convs.length-warning-breach;
-  document.getElementById('slaStats').innerHTML=`<div>✅ On Time: ${ontime}</div><div>⚠️ Warning: ${warning}</div><div>🚨 Breached: ${breach}</div>`;
+  const stats=document.getElementById('slaStats');
+  if(stats) stats.innerHTML=`<div>✅ On Time: ${ontime}</div><div>⚠️ Warning: ${warning}</div><div>🚨 Breached: ${breach}</div>`;
 }
 
 function renderSLAClocks(){
-  if(selectedConversation){
-    const conv=App.conversations[selectedConversation]; const el=document.getElementById('slaCurrentTimer');
-    if(conv && el){
-      if(conv.status==='waiting_agent'){el.textContent=`-${mmss(conv.timers.waitingSec)}`;el.style.background='rgba(52,152,219,.2)';}
-      else if(conv.timers.negativeSec>0){el.textContent=`-${mmss(conv.timers.negativeSec)}`;el.style.background='rgba(46,204,113,.2)';}
-      else {el.textContent=`+${mmss(conv.timers.positiveSec)}`;el.style.background='rgba(231,76,60,.2)';}
-    }
-  }
+  const el=document.getElementById('slaCurrentTimer');
+  if(!selectedConversation || !el) return;
+  const conv=App.conversations[selectedConversation]; if(!conv) return;
+  if(conv.status==='waiting_agent'){el.textContent=`-${mmss(conv.timers.waitingSec)}`;el.style.background='rgba(52,152,219,.2)';}
+  else if(conv.timers.negativeSec>0){el.textContent=`-${mmss(conv.timers.negativeSec)}`;el.style.background='rgba(46,204,113,.2)';}
+  else {el.textContent=`+${mmss(conv.timers.positiveSec)}`;el.style.background='rgba(231,76,60,.2)';}
 }
 
 function renderAgentCards(){
   document.querySelectorAll('.agent-card').forEach(card=>{
     const id=card.dataset.agent; const a=App.agents[id]; if(!a) return;
-    // capacity text
     const text=card.querySelector('.capacity-text'); if(text) text.textContent=`Chats: ${a.load}/${a.max}`;
-    // status pill
     const pill=card.querySelector('.agent-status');
     if(pill){pill.textContent=a.status==='available'?'Available':a.status==='busy'?'Busy':'Break';
       pill.className=`agent-status ${a.status==='available'?'status-available':a.status==='busy'?'status-busy':'status-away'}`;}
-    // leads today (dynamic on first replies)
     const ldt=card.querySelector(`[data-stat="leadsToday-${id}"]`); if(ldt) ldt.textContent=a.leadsToday;
-  });
-
-  // Click → filter SLA to that agent
-  document.querySelectorAll('.agent-card').forEach(card=>{
-    card.onclick=()=>{filterAgentId=card.dataset.agent;switchPage('sla');renderSLAList();};
+    // Click → filter SLA to that agent
+    card.onclick=()=>{filterAgentId=id;switchPage('sla');renderSLAList();};
   });
 }
-
 function renderAgentCapacityBars(){
   document.querySelectorAll('.agent-card').forEach(card=>{
     const id=card.dataset.agent, a=App.agents[id]; if(!a) return;
@@ -564,40 +534,33 @@ function renderAgentCapacityBars(){
 function openSLAChat(convId){
   selectedConversation=convId;
   const conv=App.conversations[convId], lead=App.leads[conv.leadId], agent=App.agents[conv.agentId];
-  document.getElementById('slaCurrentChat').textContent=`${lead.id} - ${agent.name}`;
-  document.getElementById('slaCurrentDetails').textContent=`${lead.area||'—'} • ALPS: ${lead.score} • ${conv.status==='waiting_agent'?'⏳ Waiting for first reply':'Ongoing'}`;
-
-  const box=document.getElementById('slaMessages'); box.innerHTML='';
-  // (demo seed) minimal history
+  const title=document.getElementById('slaCurrentChat'), det=document.getElementById('slaCurrentDetails'), box=document.getElementById('slaMessages'), input=document.getElementById('slaInputArea');
+  if(!title||!det||!box||!input) return;
+  title.textContent=`${lead.id} - ${agent.name}`;
+  det.textContent=`${lead.area||'—'} • ALPS: ${lead.score} • ${conv.status==='waiting_agent'?'⏳ Waiting for first reply':'Ongoing'}`;
+  box.innerHTML='';
   const add=(type,text)=>{const d=document.createElement('div');d.className=`message message-${type==='customer'?'user':'bot'}`;d.innerHTML=`<div>${text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px;">${new Date().toLocaleTimeString()}</div>`;box.appendChild(d);};
   add('customer',"Hi, I'm interested in a room.");
-  document.getElementById('slaInputArea').style.display='flex';
+  input.style.display='flex';
   renderSLAClocks();
 }
-
 function handleSLAMessage(e){if(e.key==='Enter') sendSLAMessage();}
 function sendSLAMessage(){
-  const input=document.getElementById('slaMessageInput'); const msg=input.value.trim(); if(!msg) return;
+  const input=document.getElementById('slaMessageInput'); const msg=input?.value?.trim(); if(!msg) return;
   const box=document.getElementById('slaMessages');
   const d=document.createElement('div'); d.className='message message-bot'; d.innerHTML=`<div>${msg}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px;">${new Date().toLocaleTimeString()}</div>`;
   box.appendChild(d); box.scrollTop=box.scrollHeight; input.value='';
-
   if(selectedConversation) markAgentReplied(selectedConversation);
-
-  setTimeout(()=>{const r=document.createElement('div');r.className='message message-user';r.innerHTML=`<div>Thanks! Can I view this weekend?</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px;">${new Date().toLocaleTimeString()}</div>`;box.appendChild(r);box.scrollTop=box.scrollHeight;},2000);
+  setTimeout(()=>{const r=document.createElement('div');r.className='message message-user';r.innerHTML=`<div>Thanks! Can I view this weekend?</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px;">${new Date().toLocaleTimeString()}</div>`;box.appendChild(r);box.scrollTop=box.scrollHeight;},1500);
 }
-
-function escalateConversation(){
-  if(!selectedConversation) return;
-  alert('Conversation escalated. Supervisor will take over.');
-}
-
+function escalateConversation(){if(!selectedConversation) return; alert('Conversation escalated. Supervisor will take over.');}
 function goToConversation(){document.getElementById('slaAlert').style.display='none';switchPage('sla');}
 
 /* ------------------------- CHAT FLOW ------------------------- */
 function initializeChat(){
   chatCurrentStep=0; chatUserResponses={}; chatAlpsScore=0;
   const msgs=document.getElementById('chatMessages');
+  if(!msgs) return;
   msgs.innerHTML='<div class="typing-indicator" id="typingIndicator"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>';
   updateChatScoreDisplay(); setTimeout(()=>askQuestion(0),600);
 }
@@ -612,19 +575,19 @@ function askQuestion(step){
     else if(q.type==='date'){html+=`<input type="date" class="input-field" onchange="handleDateChange(event,'${q.id}')">`;}
     else if(q.type==='multiple'){html+=createMultipleChoiceOptions(q.id,q.options);}
     addMessage(html,'bot');
-  },800);
+  },600);
 }
-function createMultipleChoiceOptions(id,options){let c=`<div class="checkbox-group" id="checkboxGroup_${id}">`;options.forEach((opt,i)=>{const oid=`${id}_${i}`;c+=`<div class="checkbox-item" data-option-id="${oid}" onclick="toggleMultipleChoice('${oid}','${id}')"><input type="checkbox" id="${oid}" value="${opt}"><label for="${oid}">${opt}</label></div>`;});c+=`<button class="continue-btn" onclick="submitMultipleChoice('${id}')">Continue</button></div>`;return c;}
-function toggleMultipleChoice(oid,id){const cb=document.getElementById(oid);const item=document.querySelector(`[data-option-id="${oid}"]`);cb.checked=!cb.checked;item.classList.toggle('selected',cb.checked);}
-function submitMultipleChoice(id){const vals=[...document.querySelectorAll(`#checkboxGroup_${id} input[type="checkbox"]:checked`)].map(cb=>cb.value);if(vals.length>0){chatUserResponses[id]=vals;addMessage(vals.join(', '),'user');const q=questions.find(x=>x.id===id);calculateAlpsScore(id,vals,q.weight);setTimeout(()=>askQuestion(chatCurrentStep+1),600);}else alert('Please select at least one option');}
-function addMessage(text,sender){const c=document.getElementById('chatMessages');const d=document.createElement('div');d.className=`message message-${sender}`;d.innerHTML=text;c.appendChild(d);c.scrollTop=c.scrollHeight;}
-function showTyping(){document.getElementById('typingIndicator').style.display='block';document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;}
-function hideTyping(){document.getElementById('typingIndicator').style.display='none';}
-function selectOption(id,val){chatUserResponses[id]=val;addMessage(val,'user');const q=questions.find(q=>q.id===id);calculateAlpsScore(id,val,q.weight);setTimeout(()=>askQuestion(chatCurrentStep+1),500);}
+function createMultipleChoiceOptions(id,opts){let c=`<div class="checkbox-group" id="checkboxGroup_${id}">`;opts.forEach((opt,i)=>{const oid=`${id}_${i}`;c+=`<div class="checkbox-item" data-option-id="${oid}" onclick="toggleMultipleChoice('${oid}','${id}')"><input type="checkbox" id="${oid}" value="${opt}"><label for="${oid}">${opt}</label></div>`;});c+=`<button class="continue-btn" onclick="submitMultipleChoice('${id}')">Continue</button></div>`;return c;}
+function toggleMultipleChoice(oid){const cb=document.getElementById(oid);const item=document.querySelector(`[data-option-id="${oid}"]`);cb.checked=!cb.checked;item.classList.toggle('selected',cb.checked);}
+function submitMultipleChoice(id){const vals=[...document.querySelectorAll(`#checkboxGroup_${id} input[type="checkbox"]:checked`)].map(cb=>cb.value);if(vals.length>0){chatUserResponses[id]=vals;addMessage(vals.join(', '),'user');const q=questions.find(x=>x.id===id);calculateAlpsScore(id,vals,q.weight);setTimeout(()=>askQuestion(chatCurrentStep+1),500);}else alert('Please select at least one option');}
+function addMessage(text,sender){const c=document.getElementById('chatMessages');if(!c) return;const d=document.createElement('div');d.className=`message message-${sender}`;d.innerHTML=text;c.appendChild(d);c.scrollTop=c.scrollHeight;}
+function showTyping(){const el=document.getElementById('typingIndicator');if(el){el.style.display='block';document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;}}
+function hideTyping(){const el=document.getElementById('typingIndicator');if(el) el.style.display='none';}
+function selectOption(id,val){chatUserResponses[id]=val;addMessage(val,'user');const q=questions.find(q=>q.id===id);calculateAlpsScore(id,val,q.weight);setTimeout(()=>askQuestion(chatCurrentStep+1),400);}
 function handleInputKeypress(e,id){if(e.key==='Enter'){const v=e.target.value.trim();if(v) selectOption(id,v);}}
 function handleDateChange(e,id){const v=e.target.value;if(v) selectOption(id,v);}
 function calculateAlpsScore(id,value,weight){let inc=0;switch(id){case 'area':case 'property':inc=weight;break;case 'budget':const b=parseInt(value);inc=b>=800?weight:b>=600?weight*.7:b>=400?weight*.4:weight*.1;break;case 'movein':const d=new Date(value),t=new Date();const diff=Math.ceil((d-t)/(1000*60*60*24));inc=diff<=7?weight:diff<=30?weight*.8:diff<=60?weight*.6:weight*.3;break;default:inc=weight*.8;}chatAlpsScore+=inc;updateChatScoreDisplay();}
-function updateChatScoreDisplay(){const bar=document.getElementById('chatScoreBar'),txt=document.getElementById('chatScoreText'),cat=document.getElementById('chatScoreCategory');const pct=Math.min(chatAlpsScore,100);bar.style.width=`${pct}%`;txt.textContent=`${Math.round(chatAlpsScore)} / 100`;bar.className='score-fill';if(chatAlpsScore>=70){bar.classList.add('score-hot');cat.textContent='Hot Lead 🔥';}else if(chatAlpsScore>=40){bar.classList.add('score-warm');cat.textContent='Warm Lead ⭐';}else{bar.classList.add('score-cold');cat.textContent='Cold Lead ❄️';}}
+function updateChatScoreDisplay(){const bar=document.getElementById('chatScoreBar'),txt=document.getElementById('chatScoreText'),cat=document.getElementById('chatScoreCategory');if(!bar||!txt||!cat) return;const pct=Math.min(chatAlpsScore,100);bar.style.width=`${pct}%`;txt.textContent=`${Math.round(chatAlpsScore)} / 100`;bar.className='score-fill';if(chatAlpsScore>=70){bar.classList.add('score-hot');cat.textContent='Hot Lead 🔥';}else if(chatAlpsScore>=40){bar.classList.add('score-warm');cat.textContent='Warm Lead ⭐';}else{bar.classList.add('score-cold');cat.textContent='Cold Lead ❄️';}}
 function getPropertiesForArea(){return PROPERTIES.slice(0,12);}
 function finalizeLead(){
   showTyping(); setTimeout(()=>{hideTyping();
@@ -640,21 +603,43 @@ function finalizeLead(){
     }else{
       addMessage(`<div style="background:#fff8e1;padding:15px;border-radius:12px;border-left:4px solid #f39c12;"><h3>📋 Lead Information Collected</h3><p><strong>ALPS Score: ${Math.round(chatAlpsScore)}/100</strong></p></div>`,'bot');
     }
-    renderAll(); // update Lead Mgmt & SLA immediately
-  },600);
+    renderAll();
+  },400);
 }
 
 /* ------------------------- NAV / QUEUE ------------------------- */
 function clearAgentFilter(){filterAgentId=null;renderSLAList();}
-function switchPage(page){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));document.getElementById(page).classList.add('active');document.querySelector(`[data-page="${page}"]`).classList.add('active');currentPage=page;const t={agents:'Agent Status Dashboard',leads:'Lead Management',chat:'AI Chat Interface',sla:'SLA Monitoring'};const s={agents:'Real-time agent monitoring and queue management',leads:'Lead scoring and progression tracking',chat:'AI-powered lead qualification system',sla:'Response time monitoring and escalation'};document.getElementById('pageTitle').textContent=t[page];document.getElementById('pageSubtitle').textContent=s[page];if(page==='chat') setTimeout(()=>initializeChat(),250);}
+function switchPage(page){
+  if(!page) return;
+  const target=document.getElementById(page);
+  if(!target) return;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+  target.classList.add('active');
+  const nav=document.querySelector(`.nav-item[data-page="${page}"]`); if(nav) nav.classList.add('active');
+  currentPage=page;
+  const t={agents:'Agent Status Dashboard',leads:'Lead Management',chat:'AI Chat Interface',sla:'SLA Monitoring'};
+  const s={agents:'Real-time agent monitoring and queue management',leads:'Lead scoring and progression tracking',chat:'AI-powered lead qualification system',sla:'Response time monitoring and escalation'};
+  const ttl=document.getElementById('pageTitle'), sub=document.getElementById('pageSubtitle');
+  if(ttl) ttl.textContent=t[page]; if(sub) sub.textContent=s[page];
+  if(page==='chat') setTimeout(()=>initializeChat(),150);
+}
 function initializeDashboard(){
-  document.querySelectorAll('.nav-item').forEach(i=>i.addEventListener('click',()=>switchPage(i.dataset.page)));
+  // nav
+  document.querySelectorAll('.nav-item').forEach(i=>{
+    i.addEventListener('click',()=>switchPage(i.dataset.page),false);
+  });
+  // drag & drop
   initializeDragAndDrop();
-  setInterval(()=>{document.getElementById('lastUpdate').textContent=new Date().toLocaleTimeString(); tickTimersAndRender();},1000);
+  // start timers
+  updateLastUpdateTime();
+  setInterval(()=>{updateLastUpdateTime(); tickTimersAndRender();},1000);
   renderAll();
 }
+function updateLastUpdateTime(){const el=document.getElementById('lastUpdate'); if(el) el.textContent=new Date().toLocaleTimeString();}
 function initializeDragAndDrop(){
-  const q=document.getElementById('queueList');let dragged=null;
+  const q=document.getElementById('queueList'); if(!q) return;
+  let dragged=null;
   q.addEventListener('dragstart',e=>{if(e.target.classList.contains('queue-item')){dragged=e.target;e.target.style.opacity='0.5';}});
   q.addEventListener('dragend',e=>{if(e.target.classList.contains('queue-item')) e.target.style.opacity='';});
   q.addEventListener('dragover',e=>e.preventDefault());
@@ -662,7 +647,7 @@ function initializeDragAndDrop(){
 }
 function updateQueuePositions(){
   const items=[...document.querySelectorAll('#queueList .queue-item')];
-  App.queueOrder=items.map((el,i)=>{el.querySelector('.position-text').textContent=`Position: ${i+1}`;return el.dataset.agent;});
+  App.queueOrder=items.map((el,i)=>{const p=el.querySelector('.position-text'); if(p) p.textContent=`Position: ${i+1}`; return el.dataset.agent;});
 }
 
 /* ------------------------- TICKERS ------------------------- */
@@ -684,15 +669,18 @@ function tickTimersAndRender(){
 }
 
 /* ------------------------- CHART MODAL ------------------------- */
+let leadChartRef=null;
 function showLeadChart(leadId){
-  const lead=App.leads[leadId]; const data=lead?{name:lead.id,scores:[0,10,20,30,40,50,60,Math.min(lead.score,80),lead.score-2,lead.score],messages:['Initial','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Final'],details:`${lead.area||'-'} • Budget: RM${lead.budget||'-'}`}:{name:'Lead',scores:[0,15,25,40,55,67,72,78,82,87],messages:['Initial','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Final'],details:'—'};
+  const lead=App.leads[leadId];
+  const data=lead?{name:lead.id,scores:[0,10,20,30,40,50,60,Math.min(lead.score,80),lead.score-2,lead.score],messages:['Initial','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Final'],details:`${lead.area||'-'} • Budget: RM${lead.budget||'-'}`}:{name:'Lead',scores:[0,15,25,40,55,67,72,78,82,87],messages:['Initial','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Final'],details:'—'};
   document.getElementById('chartTitle').textContent=`${data.name} - Score Progression`;
   document.getElementById('chartModal').style.display='block';
   setTimeout(()=>{createLeadChart(data);updateChartDetails(data);},50);
 }
 function createLeadChart(leadData){
-  const ctx=document.getElementById('leadChart').getContext('2d'); if(leadChart) leadChart.destroy();
-  leadChart=new Chart(ctx,{type:'line',data:{labels:leadData.messages,datasets:[{label:'ALPS Score',data:leadData.scores,borderColor:'#3498db',backgroundColor:'rgba(52,152,219,.1)',borderWidth:3,fill:true,tension:.4,pointBackgroundColor:'#3498db',pointBorderColor:'#fff',pointBorderWidth:2,pointRadius:6,pointHoverRadius:8}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100},x:{}}});
+  const ctx=document.getElementById('leadChart').getContext('2d'); if(leadChartRef) leadChartRef.destroy();
+  if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded, skipping chart.'); return; }
+  leadChartRef=new Chart(ctx,{type:'line',data:{labels:leadData.messages,datasets:[{label:'ALPS Score',data:leadData.scores,borderColor:'#3498db',backgroundColor:'rgba(52,152,219,.1)',borderWidth:3,fill:true,tension:.4,pointBackgroundColor:'#3498db',pointBorderColor:'#fff',pointBorderWidth:2,pointRadius:6,pointHoverRadius:8}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100},x:{}}});
 }
 function updateChartDetails(leadData){
   const finalScore=leadData.scores[leadData.scores.length-1];let cat='Cold Lead',color='#95a5a6';if(finalScore>=70){cat='Hot Lead 🔥';color='#e74c3c';}else if(finalScore>=40){cat='Warm Lead ⭐';color='#f39c12';}
@@ -703,13 +691,9 @@ function updateChartDetails(leadData){
       <div style="background:#f8f9fa;padding:15px;border-radius:10px;"><h4>Details</h4><div style="font-size:14px;">${leadData.details}</div></div>
     </div>`;
 }
-function closeModal(){document.getElementById('chartModal').style.display='none';if(leadChart){leadChart.destroy();leadChart=null;}}
+function closeModal(){document.getElementById('chartModal').style.display='none';if(leadChartRef){leadChartRef.destroy();leadChartRef=null;}}
 
-/* ------------------------- BOOT ------------------------- */
-window.onload=function(){
-  initializeDashboard();
-  window.onclick=function(e){const m=document.getElementById('chartModal');if(e.target===m) closeModal();}
-};
 </script>
 </body>
 </html>
+
