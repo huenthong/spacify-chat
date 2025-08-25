@@ -200,6 +200,7 @@
             background: #f8f9fa;
             border-radius: 10px;
             border-left: 4px solid #3498db;
+            cursor: move;
         }
 
         .drag-handle {
@@ -311,40 +312,6 @@
             color: #bdc3c7;
         }
 
-        /* Chart Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-
-        .modal-content {
-            background-color: white;
-            margin: 5% auto;
-            padding: 30px;
-            border-radius: 15px;
-            width: 80%;
-            max-width: 800px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .close:hover {
-            color: #000;
-        }
-
         /* Chat Window Page */
         .chat-container {
             background: white;
@@ -353,6 +320,7 @@
             display: flex;
             flex-direction: column;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         .chat-header {
@@ -399,6 +367,33 @@
             margin-left: auto;
             border-bottom-right-radius: 4px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .score-display {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 200px;
+            z-index: 100;
+        }
+
+        .score-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .score-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+            border-radius: 10px;
         }
 
         /* SLA Page */
@@ -514,27 +509,173 @@
             cursor: pointer;
         }
 
-        /* SLA Alert */
-        .sla-alert {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            z-index: 1000;
-            display: none;
-            text-align: center;
-            border-left: 5px solid #e74c3c;
+        /* Options styling for chat */
+        .options-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
         }
 
-        .alert-actions {
+        .option-button {
+            padding: 10px 15px;
+            background: #f0f0f0;
+            border: 2px solid #e0e0e0;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .option-button:hover {
+            background: #25D366;
+            color: white;
+            border-color: #25D366;
+        }
+
+        .property-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .property-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .property-item:hover {
+            background: #25D366;
+            color: white;
+            border-color: #25D366;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 20px;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+
+        .typing-indicator {
+            display: none;
+            background: white;
+            padding: 15px;
+            border-radius: 18px;
+            margin-bottom: 15px;
+            max-width: 70%;
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing-dots {
             display: flex;
-            gap: 15px;
-            margin-top: 20px;
-            justify-content: center;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #999;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .checkbox-group {
+            margin-top: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 2px solid #e9ecef;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-item:hover {
+            background: #e3f2fd;
+            border-color: #3498db;
+        }
+
+        .checkbox-item.selected {
+            background: #e8f5e8;
+            border-color: #2ecc71;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.3);
+        }
+
+        .continue-btn {
+            margin-top: 15px;
+            padding: 12px 25px;
+            background: #25D366;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .continue-btn:hover {
+            background: #1ea952;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
         }
 
         .btn {
@@ -588,133 +729,27 @@
             100% { opacity: 1; }
         }
 
-        /* Options styling for chat */
-        .options-container {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .option-button {
-            padding: 10px 15px;
-            background: #f0f0f0;
-            border: 2px solid #e0e0e0;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-        }
-
-        .option-button:hover {
-            background: #25D366;
-            color: white;
-            border-color: #25D366;
-        }
-
-        .property-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .property-item {
-            padding: 12px;
-            background: #f8f9fa;
-            border: 2px solid #e9ecef;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-        }
-
-        .property-item:hover {
-            background: #25D366;
-            color: white;
-            border-color: #25D366;
-        }
-
-        .score-bar {
-            width: 100%;
-            height: 20px;
-            background: rgba(255,255,255,0.3);
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-
-        .score-fill {
-            height: 100%;
-            transition: width 0.5s ease;
-            border-radius: 10px;
-        }
-
-        .input-field {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 20px;
-            margin-top: 10px;
-            font-size: 16px;
-        }
-
-        .typing-indicator {
-            display: none;
+        /* SLA Alert */
+        .sla-alert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             background: white;
-            padding: 15px;
-            border-radius: 18px;
-            margin-bottom: 15px;
-            max-width: 70%;
-            border-bottom-left-radius: 4px;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+            text-align: center;
+            border-left: 5px solid #e74c3c;
         }
 
-        .typing-dots {
+        .alert-actions {
             display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            background: #999;
-            border-radius: 50%;
-            animation: typing 1.4s infinite;
-        }
-
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes typing {
-            0%, 60%, 100% { transform: translateY(0); }
-            30% { transform: translateY(-10px); }
-        }
-
-        .checkbox-group {
-            margin-top: 10px;
-        }
-
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            margin: 8px 0;
-            padding: 8px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            cursor: pointer;
-            border: 2px solid #e9ecef;
-            transition: all 0.2s ease;
-        }
-
-        .checkbox-item:hover {
-            background: #e3f2fd;
-            border-color: #3498db;
-        }
-
-        .checkbox-item input[type="checkbox"] {
-            margin-right: 10px;
-            transform: scale(1.2);
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
         }
 
         /* Responsive */
@@ -733,6 +768,13 @@
             
             .sla-container {
                 grid-template-columns: 1fr;
+            }
+
+            .score-display {
+                position: relative;
+                top: 0;
+                right: 0;
+                margin: 10px;
             }
         }
     </style>
@@ -792,7 +834,7 @@
                 <!-- Agent Status Page -->
                 <div id="agents" class="page active">
                     <div class="agents-grid">
-                        <div class="agent-card top-sales available" data-agent="agent1" onclick="goToAgentConversations('agent1')">
+                        <div class="agent-card top-sales available" data-agent="agent1">
                             <div class="agent-header">
                                 <div class="agent-name">👑 Sarah Chen</div>
                                 <div class="agent-status status-available">Available</div>
@@ -801,7 +843,7 @@
                             <div class="capacity-bar">
                                 <div class="capacity-fill capacity-low" style="width: 30%"></div>
                             </div>
-                            <div>Capacity: 3/10 chats</div>
+                            <div class="capacity-text">Capacity: 3/10 chats</div>
                             <div class="agent-stats">
                                 <div class="stat-item">
                                     <div class="stat-number">95%</div>
@@ -818,7 +860,7 @@
                             </div>
                         </div>
 
-                        <div class="agent-card busy" data-agent="agent2" onclick="goToAgentConversations('agent2')">
+                        <div class="agent-card busy" data-agent="agent2">
                             <div class="agent-header">
                                 <div class="agent-name">Mike Johnson</div>
                                 <div class="agent-status status-busy">Busy</div>
@@ -827,7 +869,7 @@
                             <div class="capacity-bar">
                                 <div class="capacity-fill capacity-high" style="width: 80%"></div>
                             </div>
-                            <div>Capacity: 8/10 chats</div>
+                            <div class="capacity-text">Capacity: 8/10 chats</div>
                             <div class="agent-stats">
                                 <div class="stat-item">
                                     <div class="stat-number">88%</div>
@@ -844,7 +886,7 @@
                             </div>
                         </div>
 
-                        <div class="agent-card available" data-agent="agent3" onclick="goToAgentConversations('agent3')">
+                        <div class="agent-card available" data-agent="agent3">
                             <div class="agent-header">
                                 <div class="agent-name">Lisa Wong</div>
                                 <div class="agent-status status-available">Available</div>
@@ -853,7 +895,7 @@
                             <div class="capacity-bar">
                                 <div class="capacity-fill capacity-medium" style="width: 50%"></div>
                             </div>
-                            <div>Capacity: 5/10 chats</div>
+                            <div class="capacity-text">Capacity: 5/10 chats</div>
                             <div class="agent-stats">
                                 <div class="stat-item">
                                     <div class="stat-number">92%</div>
@@ -870,7 +912,7 @@
                             </div>
                         </div>
 
-                        <div class="agent-card away" data-agent="agent4" onclick="goToAgentConversations('agent4')">
+                        <div class="agent-card away" data-agent="agent4">
                             <div class="agent-header">
                                 <div class="agent-name">David Lim</div>
                                 <div class="agent-status status-away">Break</div>
@@ -879,7 +921,7 @@
                             <div class="capacity-bar">
                                 <div class="capacity-fill capacity-low" style="width: 0%"></div>
                             </div>
-                            <div>Capacity: 0/10 chats</div>
+                            <div class="capacity-text">Capacity: 0/10 chats</div>
                             <div class="agent-stats">
                                 <div class="stat-item">
                                     <div class="stat-number">85%</div>
@@ -896,7 +938,7 @@
                             </div>
                         </div>
 
-                        <div class="agent-card available" data-agent="agent5" onclick="goToAgentConversations('agent5')">
+                        <div class="agent-card available" data-agent="agent5">
                             <div class="agent-header">
                                 <div class="agent-name">Jennifer Tan</div>
                                 <div class="agent-status status-available">Available</div>
@@ -905,7 +947,7 @@
                             <div class="capacity-bar">
                                 <div class="capacity-fill capacity-low" style="width: 20%"></div>
                             </div>
-                            <div>Capacity: 2/10 chats</div>
+                            <div class="capacity-text">Capacity: 2/10 chats</div>
                             <div class="agent-stats">
                                 <div class="stat-item">
                                     <div class="stat-number">78%</div>
@@ -928,44 +970,44 @@
                         <p style="margin-bottom: 15px; color: #7f8c8d;">Drag agents to reorder priority queue</p>
                         
                         <div id="queueList">
-                            <div class="queue-item" draggable="true" data-agent="agent1">
+                            <div class="queue-item" draggable="true" data-agent="agent1" data-position="1">
                                 <div style="display: flex; align-items: center; gap: 15px;">
                                     <div class="drag-handle">≡</div>
                                     <div>👑 <strong>Sarah Chen</strong> - Top Sales</div>
                                 </div>
-                                <div>Position: 1</div>
+                                <div class="position-text">Position: 1</div>
                             </div>
                             
-                            <div class="queue-item" draggable="true" data-agent="agent2">
+                            <div class="queue-item" draggable="true" data-agent="agent2" data-position="2">
                                 <div style="display: flex; align-items: center; gap: 15px;">
                                     <div class="drag-handle">≡</div>
                                     <div><strong>Mike Johnson</strong> - Senior Agent</div>
                                 </div>
-                                <div>Position: 2</div>
+                                <div class="position-text">Position: 2</div>
                             </div>
                             
-                            <div class="queue-item" draggable="true" data-agent="agent3">
+                            <div class="queue-item" draggable="true" data-agent="agent3" data-position="3">
                                 <div style="display: flex; align-items: center; gap: 15px;">
                                     <div class="drag-handle">≡</div>
                                     <div><strong>Lisa Wong</strong> - Agent</div>
                                 </div>
-                                <div>Position: 3</div>
+                                <div class="position-text">Position: 3</div>
                             </div>
                             
-                            <div class="queue-item" draggable="true" data-agent="agent4">
+                            <div class="queue-item" draggable="true" data-agent="agent4" data-position="4">
                                 <div style="display: flex; align-items: center; gap: 15px;">
                                     <div class="drag-handle">≡</div>
                                     <div><strong>David Lim</strong> - Agent</div>
                                 </div>
-                                <div>Position: 4</div>
+                                <div class="position-text">Position: 4</div>
                             </div>
                             
-                            <div class="queue-item" draggable="true" data-agent="agent5">
+                            <div class="queue-item" draggable="true" data-agent="agent5" data-position="5">
                                 <div style="display: flex; align-items: center; gap: 15px;">
                                     <div class="drag-handle">≡</div>
                                     <div><strong>Jennifer Tan</strong> - Junior Agent</div>
                                 </div>
-                                <div>Position: 5</div>
+                                <div class="position-text">Position: 5</div>
                             </div>
                         </div>
                         
@@ -1129,14 +1171,15 @@
                                 <h3>🤖 BeLive AI Assistant</h3>
                                 <div>Lead Qualification Chat • No Timer (AI Handling)</div>
                             </div>
-                            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 12px; min-width: 200px;">
-                                <h4 style="color: white; margin-bottom: 10px;">ALPS Score</h4>
-                                <div class="score-bar">
-                                    <div class="score-fill score-cold" id="chatScoreBar" style="width: 0%; background: rgba(255,255,255,0.8);"></div>
-                                </div>
-                                <div id="chatScoreText" style="color: white; font-weight: bold; margin-top: 5px;">0 / 100</div>
-                                <div id="chatScoreCategory" style="color: white; font-size: 14px;">Getting Started</div>
+                        </div>
+
+                        <div class="score-display">
+                            <h4>ALPS Score</h4>
+                            <div class="score-bar">
+                                <div class="score-fill score-cold" id="chatScoreBar" style="width: 0%"></div>
                             </div>
+                            <div id="chatScoreText">0 / 100</div>
+                            <div id="chatScoreCategory">Getting Started</div>
                         </div>
 
                         <div class="chat-messages" id="chatMessages">
@@ -1297,6 +1340,7 @@
         let leadChart = null;
         let slaTimers = {};
         let realTimeInterval;
+        let agentCapacities = [3, 8, 5, 0, 2]; // Initial capacities for agents
 
         // Chat variables for AI interaction
         let chatCurrentStep = 0;
@@ -1424,10 +1468,13 @@
             // Initialize SLA timers
             initializeSLATimers();
 
-            // Initialize chat if on chat page
-            if (currentPage === 'chat') {
-                initializeChat();
-            }
+            // Add click handlers to agent cards
+            document.querySelectorAll('.agent-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const agentId = card.dataset.agent;
+                    goToAgentConversations(agentId);
+                });
+            });
         }
 
         // Page switching
@@ -1493,26 +1540,23 @@
         }
 
         function updateAgentStats() {
-            // Simulate real-time agent capacity changes
+            // Update agent capacity displays
             const agents = document.querySelectorAll('.agent-card');
-            const defaultCapacities = [3, 8, 5, 0, 2]; // Default capacities for each agent
             
             agents.forEach((agent, index) => {
                 const capacityFill = agent.querySelector('.capacity-fill');
-                const capacityText = agent.querySelector('.capacity-bar').nextElementSibling;
-                
-                // Get current capacity or set default
-                let capacityMatch = capacityText.textContent.match(/(\d+)\/(\d+)/);
-                let currentCapacity = capacityMatch ? parseInt(capacityMatch[1]) : defaultCapacities[index];
-                const maxCapacity = 10;
+                const capacityText = agent.querySelector('.capacity-text');
                 
                 // Random capacity fluctuation (small chance)
                 if (Math.random() < 0.05) { // 5% chance of change
                     const change = Math.random() < 0.5 ? -1 : 1;
-                    currentCapacity = Math.max(0, Math.min(maxCapacity, currentCapacity + change));
+                    agentCapacities[index] = Math.max(0, Math.min(10, agentCapacities[index] + change));
                 }
                 
+                const currentCapacity = agentCapacities[index];
+                const maxCapacity = 10;
                 const percentage = (currentCapacity / maxCapacity) * 100;
+                
                 capacityFill.style.width = `${percentage}%`;
                 capacityText.textContent = `Capacity: ${currentCapacity}/${maxCapacity} chats`;
                 
@@ -1689,8 +1733,9 @@
         function updateQueuePositions() {
             const queueItems = document.querySelectorAll('#queueList .queue-item');
             queueItems.forEach((item, index) => {
-                const positionElement = item.querySelector('div:last-child');
+                const positionElement = item.querySelector('.position-text');
                 positionElement.textContent = `Position: ${index + 1}`;
+                item.dataset.position = index + 1;
             });
         }
 
@@ -2054,6 +2099,8 @@
             const messagesContainer = document.getElementById('chatMessages');
             messagesContainer.innerHTML = '<div class="typing-indicator" id="typingIndicator"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>';
             
+            updateChatScoreDisplay();
+            
             setTimeout(() => {
                 askQuestion(0);
             }, 1000);
@@ -2101,27 +2148,35 @@
         }
 
         function createMultipleChoiceOptions(questionId, options) {
-            let content = '<div class="checkbox-group">';
+            let content = '<div class="checkbox-group" id="checkboxGroup_' + questionId + '">';
             options.forEach((option, index) => {
                 const optionId = `${questionId}_${index}`;
                 content += `
-                    <div class="checkbox-item" onclick="toggleCheckbox('${optionId}')">
+                    <div class="checkbox-item" data-option-id="${optionId}" onclick="toggleMultipleChoice('${optionId}', '${questionId}')">
                         <input type="checkbox" id="${optionId}" value="${option}">
                         <label for="${optionId}">${option}</label>
                     </div>`;
             });
-            content += `<button class="btn btn-primary" onclick="submitMultipleChoice('${questionId}')" style="margin-top: 15px; padding: 10px 20px; background: #25D366; color: white; border: none; border-radius: 8px; cursor: pointer;">Continue</button>`;
+            content += `<button class="continue-btn" onclick="submitMultipleChoice('${questionId}')">Continue</button>`;
             content += '</div>';
             return content;
         }
 
-        function toggleCheckbox(checkboxId) {
-            const checkbox = document.getElementById(checkboxId);
+        function toggleMultipleChoice(optionId, questionId) {
+            const checkbox = document.getElementById(optionId);
+            const checkboxItem = document.querySelector(`[data-option-id="${optionId}"]`);
+            
             checkbox.checked = !checkbox.checked;
+            
+            if (checkbox.checked) {
+                checkboxItem.classList.add('selected');
+            } else {
+                checkboxItem.classList.remove('selected');
+            }
         }
 
         function submitMultipleChoice(questionId) {
-            const checkboxes = document.querySelectorAll(`input[id^="${questionId}_"]:checked`);
+            const checkboxes = document.querySelectorAll(`#checkboxGroup_${questionId} input[type="checkbox"]:checked`);
             const values = Array.from(checkboxes).map(cb => cb.value);
             
             if (values.length > 0) {
@@ -2227,11 +2282,15 @@
             scoreElement.style.width = `${percentage}%`;
             scoreText.textContent = `${Math.round(chatAlpsScore)} / 100`;
             
+            scoreElement.className = 'score-fill';
             if (chatAlpsScore >= 70) {
+                scoreElement.classList.add('score-hot');
                 scoreCategory.textContent = 'Hot Lead 🔥';
             } else if (chatAlpsScore >= 40) {
+                scoreElement.classList.add('score-warm');
                 scoreCategory.textContent = 'Warm Lead ⭐';
             } else {
+                scoreElement.classList.add('score-cold');
                 scoreCategory.textContent = 'Cold Lead ❄️';
             }
         }
