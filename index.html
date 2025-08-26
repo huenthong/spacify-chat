@@ -68,8 +68,9 @@
   .message-bot{background:#fff;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
   .message-user{background:#DCF8C6;align-self:flex-end;border-bottom-right-radius:4px;margin-left:auto;box-shadow:0 1px 2px rgba(0,0,0,.08)}
   .message-system{background:#fff3cd!important;border:2px solid #ffeaa7!important;text-align:center!important;max-width:90%!important;margin:10px auto!important}
+  .message-ai-takeover{background:#e3f2fd!important;border:2px solid #2196f3!important;text-align:center!important;max-width:90%!important;margin:10px auto!important}
 
-  .score-display{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.98);padding:14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:200px;z-index:5}
+  .score-display{position:fixed;top:130px;right:20px;background:rgba(255,255,255,.98);padding:14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:200px;z-index:1000}
   .score-bar{height:20px;background:#e0e0e0;border-radius:10px;overflow:hidden;margin:8px 0}
   .score-fill{height:100%;border-radius:10px;transition:width .4s}
 
@@ -117,6 +118,8 @@
   .alert-actions{display:flex;gap:12px;margin-top:16px;justify-content:center}
 
   .live-score-badge{position:absolute;top:5px;right:5px;background:#3498db;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+
+  .message-score{position:absolute;top:5px;right:5px;background:rgba(52,152,219,.1);border:1px solid #3498db;color:#3498db;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:700}
 
   @media(max-width:900px){
     .leads-container{grid-template-columns:1fr}
@@ -197,13 +200,6 @@
             </div>
           </div>
 
-          <div class="score-display" id="scoreFloater">
-            <h4>ALPS Score</h4>
-            <div class="score-bar"><div class="score-fill score-cold" id="chatScoreBar" style="width:0%"></div></div>
-            <div id="chatScoreText">0 / 100</div>
-            <div id="chatScoreCategory">Getting Started</div>
-          </div>
-
           <div class="chat-messages" id="chatMessages">
             <div class="typing-indicator" id="typingIndicator">
               <div class="typing-dots">
@@ -249,6 +245,14 @@
   </div>
 </div>
 
+<!-- Fixed Score Display -->
+<div class="score-display" id="scoreFloater" style="display:none">
+  <h4>ALPS Score</h4>
+  <div class="score-bar"><div class="score-fill score-cold" id="chatScoreBar" style="width:0%"></div></div>
+  <div id="chatScoreText">0 / 100</div>
+  <div id="chatScoreCategory">Getting Started</div>
+</div>
+
 <!-- Lead Chart Modal -->
 <div id="chartModal" class="modal">
   <div class="modal-content">
@@ -278,9 +282,10 @@
 'use strict';
 
 /* ======= CONFIG ======= */
-const MODEL_SOURCE = 'client';
-const SCORE_ENDPOINT = '/api/score';
+const MODEL_SOURCE = 'server'; // Changed to server for pickle model
+const SCORE_ENDPOINT = '/api/score'; // Your API endpoint for pickle model
 const LOW_SCORE_THRESHOLD = 30; // AI takes over below this score
+const INITIAL_RESPONSE_TIMEOUT = 300; // 5 minutes in seconds
 
 /* ======= GLOBAL STATE ======= */
 let currentPage = 'agents';
@@ -369,7 +374,13 @@ function switchPage(pageName){
   const s={agents:'Real-time agent monitoring and queue management',leads:'Lead scoring and progression tracking',chat:'AI-powered lead qualification system',sla:'Response time monitoring and escalation'};
   document.getElementById('pageTitle').textContent=t[pageName];
   document.getElementById('pageSubtitle').textContent=s[pageName];
-  if(pageName==='chat'){ setTimeout(initializeChat,200); }
+  
+  if(pageName==='chat'){ 
+    setTimeout(initializeChat,200); 
+    document.getElementById('scoreFloater').style.display = 'block';
+  } else {
+    document.getElementById('scoreFloater').style.display = 'none';
+  }
   if(pageName==='sla'){ showAllConversations(); }
   if(pageName==='leads'){ refreshLeadsView(); }
 }
@@ -446,7 +457,6 @@ function renderQueueFromAgents(){
 
 /* ======= ROUND ROBIN AGENT SELECTION ======= */
 function getNextAvailableAgent(){
-  // Start from current index and find next available agent
   for(let i = 0; i < agentOrder.length; i++){
     const agentId = agentOrder[nextAgentIndex];
     nextAgentIndex = (nextAgentIndex + 1) % agentOrder.length;
@@ -455,12 +465,11 @@ function getNextAvailableAgent(){
       return {id: agentId, name: AGENTS[agentId].name};
     }
   }
-  return null; // No available agents
+  return null;
 }
 
 /* ======= LEADS MANAGEMENT ======= */
 function seedInitialLeads(){
-  // Add some initial leads to demonstrate the system
   const initialLeads = [
     {area:'Mont Kiara', score:87, agent:'Sarah Chen', status:'assigned'},
     {area:'KL/Selangor', score:82, agent:'Mike Johnson', status:'assigned'},
@@ -496,11 +505,8 @@ function refreshLeadsView(){
   ongoingContainer.innerHTML = '';
   pastContainer.innerHTML = '';
   
-  const now = new Date();
-  const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  
   allLeadsDatabase.forEach(lead => {
-    const isOngoing = ['assigned', 'ai_handling', 'in_queue'].includes(lead.status);
+    const isOngoing = ['assigned', 'ai_handling', 'in_queue', 'ai_takeover'].includes(lead.status);
     const container = isOngoing ? ongoingContainer : pastContainer;
     
     const leadElement = createLeadElement(lead);
@@ -533,6 +539,7 @@ function getLeadStatusText(status){
   switch(status){
     case 'assigned': return 'Assigned';
     case 'ai_handling': return 'AI Handling';
+    case 'ai_takeover': return 'AI Takeover';
     case 'in_queue': return 'Queued';
     case 'completed': return 'Completed';
     case 'cancelled': return 'Cancelled';
@@ -550,6 +557,7 @@ function tickSLATimers(){
       t.timeRemaining--;
       if(t.timeRemaining <= 0){
         if(t.type === 'initial'){
+          // Auto route to next agent after 5 minutes
           reassignToNextAgent(conv);
         } else {
           t.alertTriggered = true;
@@ -609,7 +617,6 @@ function updateConversationListItem(convId){
   timer.className = 'timer-badge ' + tInfo.class;
   row.className = getConversationClass(conv) + ' conversation-item';
   
-  // Update live score badge
   const scoreBadge = row.querySelector('.live-score-badge');
   if(scoreBadge) {
     scoreBadge.textContent = conv.score;
@@ -701,7 +708,7 @@ function openSLAChat(id){
     return;
   }
 
-  // Legacy demo handling
+  // Legacy demo handling remains the same
   const l = {
     conv1:{title:'Lead #2024001 - Sarah Chen',details:'Mont Kiara • ALPS: 87 • Active for 12 mins',messages:[
       {type:'customer',text:"Hi, I'm looking for a room in Mont Kiara area",time:'14:32'},
@@ -758,11 +765,21 @@ function loadActiveConversation(conv){
 
   const box = document.getElementById('slaMessages');
   box.innerHTML = '';
-  conv.messages.forEach(m=>{
+  conv.messages.forEach((m, index)=>{
     const div = document.createElement('div');
     const cls = m.type === 'customer' ? 'message-user' : (m.type === 'system' ? 'message-system' : 'message-bot');
     div.className = 'message ' + cls;
+    div.style.position = 'relative';
     div.innerHTML = `<div>${m.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${m.time}</div>`;
+    
+    // Add score badge to customer messages
+    if(m.type === 'customer' && m.score){
+      const scoreBadge = document.createElement('div');
+      scoreBadge.className = 'message-score';
+      scoreBadge.textContent = m.score;
+      div.appendChild(scoreBadge);
+    }
+    
     box.appendChild(div);
   });
   box.scrollTop = box.scrollHeight;
@@ -799,42 +816,67 @@ function sendSLAMessage(){
     }
     
     setTimeout(() => {
-      const replies = ["Thanks! That helps.", "Great, what are next steps?", "I'm interested to view.", "Sounds good!", "👍"];
+      const replies = ["Thanks! That helps.", "Great, what are next steps?", "I'm interested to view.", "Sounds good!", "Actually, I'm not interested anymore", "The price is too high", "I changed my mind"];
       const r = replies[Math.floor(Math.random() * replies.length)];
       const u = document.createElement('div');
       u.className = 'message message-user';
+      u.style.position = 'relative';
       u.innerHTML = `<div>${r}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${new Date().toLocaleTimeString()}</div>`;
+      
+      // Calculate new score based on customer response
+      const newScore = calculateScoreFromResponse(r, conv.score);
+      const scoreBadge = document.createElement('div');
+      scoreBadge.className = 'message-score';
+      scoreBadge.textContent = newScore;
+      u.appendChild(scoreBadge);
+      
       box.appendChild(u); 
       box.scrollTop = box.scrollHeight;
-      conv.messages.push({type:'customer', text:r, time:new Date().toLocaleTimeString()});
+      
+      const customerMessage = {type:'customer', text:r, time:new Date().toLocaleTimeString(), score: newScore};
+      conv.messages.push(customerMessage);
+      conv.score = newScore;
       conv.slaTimer.timeRemaining = 600;
       
-      // Recalculate ALPS score after customer message
-      recalculateConversationScore(conv);
+      // Check if AI should take over
+      if(newScore < LOW_SCORE_THRESHOLD && conv.status !== 'ai_takeover'){
+        setTimeout(() => aiTakeoverConversation(conv), 2000);
+      }
+      
+      updateConversationListItem(conv.id);
       
     }, 1500);
   }
 }
 
-function recalculateConversationScore(conv){
-  // Simulate score changes based on conversation flow
-  const randomChange = Math.random() < 0.3 ? Math.floor(Math.random() * 10) - 5 : 0;
-  const newScore = Math.max(10, Math.min(100, conv.score + randomChange));
+function calculateScoreFromResponse(response, currentScore){
+  const negativeResponses = ["not interested", "too high", "changed my mind", "no thank you", "expensive"];
+  const positiveResponses = ["interested", "good", "sounds good", "great", "perfect"];
   
-  conv.score = newScore;
+  let scoreChange = 0;
+  const lowerResponse = response.toLowerCase();
   
-  // Check if score dropped too low and AI should take over
-  if(newScore < LOW_SCORE_THRESHOLD && conv.status !== 'ai_takeover'){
-    aiTakeoverConversation(conv);
+  for(const neg of negativeResponses){
+    if(lowerResponse.includes(neg)){
+      scoreChange = -Math.floor(Math.random() * 20) - 10; // -10 to -30
+      break;
+    }
   }
   
-  // Update lead in database
-  const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
-  if(leadIndex !== -1){
-    allLeadsDatabase[leadIndex].score = newScore;
+  if(scoreChange === 0){
+    for(const pos of positiveResponses){
+      if(lowerResponse.includes(pos)){
+        scoreChange = Math.floor(Math.random() * 10) + 2; // +2 to +12
+        break;
+      }
+    }
   }
   
-  updateConversationListItem(conv.id);
+  if(scoreChange === 0){
+    scoreChange = Math.floor(Math.random() * 6) - 3; // -3 to +3
+  }
+  
+  return Math.max(5, Math.min(100, currentScore + scoreChange));
 }
 
 function aiTakeoverConversation(conv){
@@ -850,20 +892,63 @@ function aiTakeoverConversation(conv){
     agentConvs.splice(index, 1);
   }
   
-  // Add system message
-  conv.messages.push({
+  // Add AI takeover message
+  const aiMessage = {
     type: 'system',
-    text: `AI Assistant has taken over this conversation due to low engagement score (${conv.score}). Agent capacity freed.`,
+    text: `🤖 AI Assistant has taken over this conversation due to low engagement score (${conv.score}). Agent capacity freed.`,
     time: new Date().toLocaleTimeString()
-  });
+  };
+  conv.messages.push(aiMessage);
   
-  // If this conversation is currently open, refresh it
+  // Update lead status in database
+  const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
+  if(leadIndex !== -1){
+    allLeadsDatabase[leadIndex].status = 'ai_takeover';
+    allLeadsDatabase[leadIndex].agent = 'AI Assistant';
+    allLeadsDatabase[leadIndex].score = conv.score;
+  }
+  
+  // If conversation is currently open, refresh it
   if(selectedConversation === conv.id) {
+    const box = document.getElementById('slaMessages');
+    const div = document.createElement('div');
+    div.className = 'message message-ai-takeover';
+    div.innerHTML = `<div>${aiMessage.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${aiMessage.time}</div>`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    
     loadActiveConversation(conv);
   }
   
   showNotification(`AI takeover: Lead ${conv.leadNumber} (Score: ${conv.score})`, 'warning');
   refreshCurrentListView();
+}
+
+function reassignToNextAgent(conv){
+  const next = getNextAvailableAgent();
+  
+  // Remove from current agent's list
+  const arr = agentConversations[conv.agentId];
+  const ix = arr.findIndex(c => c.id === conv.id);
+  if(ix > -1) arr.splice(ix, 1);
+
+  if(next){
+    conv.agentId = next.id;
+    conv.agentName = next.name;
+    conv.assignedTime = new Date();
+    conv.status = 'waiting_agent_response';
+    conv.slaTimer = {type:'initial', timeRemaining:INITIAL_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0};
+    agentConversations[next.id].push(conv);
+    conv.messages.push({type:'system', text:`Conversation reassigned to ${next.name} due to initial response timeout.`, time:new Date().toLocaleTimeString()});
+
+    if(selectedConversation === conv.id) loadActiveConversation(conv);
+    refreshCurrentListView();
+    showNotification(`Lead ${conv.leadNumber} reassigned to ${next.name}`, 'warning');
+  } else {
+    conv.status = 'unassigned';
+    conv.slaTimer.overdue++;
+    showNotification(`No agent available for Lead ${conv.leadNumber}`, 'error');
+  }
 }
 
 function escalateConversation(){
@@ -875,6 +960,12 @@ function escalateConversation(){
   box.appendChild(div); 
   box.scrollTop = box.scrollHeight;
   alert('Escalated. Supervisor will take over soon.');
+}
+
+function refreshCurrentListView(){
+  syncAgentCapacitiesToConversations();
+  if(currentListView.type === 'all') showAllConversations();
+  if(currentListView.type === 'agent') showAgentConversationsList(currentListView.id);
 }
 
 function getConversationClass(conv){
@@ -916,40 +1007,6 @@ function getStatusText(s){
          s === 'ai_takeover' ? 'AI handling' :
          s === 'in_queue' ? 'In queue' :
          s === 'unassigned' ? 'Unassigned' : 'Active';
-}
-
-/* ======= REASSIGNMENT ======= */
-function reassignToNextAgent(conv){
-  const next = getNextAvailableAgent();
-  
-  // Remove from current agent's list
-  const arr = agentConversations[conv.agentId];
-  const ix = arr.findIndex(c => c.id === conv.id);
-  if(ix > -1) arr.splice(ix, 1);
-
-  if(next){
-    conv.agentId = next.id;
-    conv.agentName = next.name;
-    conv.assignedTime = new Date();
-    conv.status = 'waiting_agent_response';
-    conv.slaTimer = {type:'initial', timeRemaining:300, alertTriggered:false, overdue:0};
-    agentConversations[next.id].push(conv);
-    conv.messages.push({type:'system', text:`Conversation reassigned to ${next.name} due to initial response timeout.`, time:new Date().toLocaleTimeString()});
-
-    if(selectedConversation === conv.id) loadActiveConversation(conv);
-    refreshCurrentListView();
-    showNotification(`Lead ${conv.leadNumber} reassigned to ${next.name}`, 'warning');
-  } else {
-    conv.status = 'unassigned';
-    conv.slaTimer.overdue++;
-    showNotification(`No agent available for Lead ${conv.leadNumber}`, 'error');
-  }
-}
-
-function refreshCurrentListView(){
-  syncAgentCapacitiesToConversations();
-  if(currentListView.type === 'all') showAllConversations();
-  if(currentListView.type === 'agent') showAgentConversationsList(currentListView.id);
 }
 
 /* ======= ALERT ======= */
@@ -1034,7 +1091,6 @@ function buildLeadChartData(lead){
     };
   }
   
-  // Default progression for leads without detailed responses
   const progression = [0, 15, 25, 40, 50, 60, Math.min(100, lead.score)];
   return {
     name: `Lead ${lead.leadNumber}`,
@@ -1327,7 +1383,7 @@ function routeLeadToAgent(lead){
         text: `Lead ${lead.leadNumber} has been assigned to you. Area: ${lead.area}, Budget: ${lead.budget}, Move-in: ${lead.movein}`,
         time: new Date().toLocaleTimeString()
       }],
-      slaTimer: {type: 'initial', timeRemaining: 300, alertTriggered: false, overdue: 0}
+      slaTimer: {type: 'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered: false, overdue: 0}
     };
 
     allLeadsDatabase.push(lead);
@@ -1421,13 +1477,17 @@ function updateQueuePositions(){
     agentOrder.push(it.dataset.agent); 
   });
   
-  // Update top sales designation
-  AGENTS[agentOrder[0]].role = 'Top Sales Agent';
-  for(let i = 1; i < agentOrder.length; i++){
-    AGENTS[agentOrder[i]].role = 'Agent';
-  }
+  // Update top sales designation automatically
+  agentOrder.forEach((agentId, i) => {
+    if(i === 0) {
+      AGENTS[agentId].role = 'Top Sales Agent';
+    } else {
+      AGENTS[agentId].role = 'Agent';
+    }
+  });
   
   renderAgentsGrid(); 
+  renderQueueFromAgents();
   syncAgentCapacitiesToConversations();
 }
 
@@ -1458,7 +1518,7 @@ function seedDemoConversations(){
         text: `Lead ${d.leadNum} has been assigned to you. Area: ${d.area}, Budget: 800, Move-in: ${new Date().toISOString().slice(0,10)}`,
         time: new Date().toLocaleTimeString()
       }],
-      slaTimer: {type: 'initial', timeRemaining: 300, alertTriggered: false, overdue: 0}
+      slaTimer: {type: 'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered: false, overdue: 0}
     };
     addToSLAMonitoring(conv);
   });
@@ -1480,7 +1540,6 @@ function goToAgentConversations(agentId){
 </script>
 </body>
 </html>
-
 
 
 
