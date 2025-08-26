@@ -4,820 +4,1142 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>BeLive ALPS Management Dashboard</title>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
-  :root{
-    --bg:#f5f6fa;
-    --card:#ffffff;
-    --muted:#7f8c8d;
-    --muted-2:#b4bcc2;
-    --brand:#3498db;
-    --ok:#2ecc71;
-    --warn:#f39c12;
-    --danger:#e74c3c;
-    --ink:#2c3e50;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);height:100vh;overflow:hidden;color:var(--ink)}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:#f5f6fa;height:100vh;overflow:hidden}
   .dashboard{display:flex;height:100vh}
+  .sidebar{width:280px;background:#2c3e50;color:#fff;padding:20px;overflow-y:auto}
+  .nav-item{padding:15px;margin:5px 0;border-radius:8px;cursor:pointer;display:flex;gap:10px;align-items:center;transition:.2s}
+  .nav-item:hover,.nav-item.active{background:#34495e;transform:translateX(4px)}
+  .nav-icon{font-size:20px}
+  .main-content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .header{background:#fff;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.08);display:flex;justify-content:space-between;align-items:center}
+  .content-area{flex:1;padding:20px;overflow-y:auto}
+  .page{display:none}.page.active{display:block}
 
-  /* SIDEBAR */
-  .sidebar{width:280px;background:#2c3e50;color:#fff;padding:20px;overflow:auto}
-  .nav-item{padding:14px 12px;margin:6px 0;border-radius:10px;display:flex;gap:10px;align-items:center;cursor:pointer;transition:.18s}
-  .nav-item:hover{background:#3b4b61}
-  .nav-item.active{background:#34495e}
-  .nav-icon{font-size:18px}
-  .side-card{margin-top:18px;border-radius:12px;background:rgba(255,255,255,.10);padding:14px;font-size:14px}
-  .live-pill{display:inline-flex;align-items:center;gap:6px;background:#e74c3c;color:#fff;border-radius:999px;padding:5px 10px;font-weight:800;font-size:12px}
-  .pulse{width:8px;height:8px;border-radius:50%;background:#fff;animation:pulse 1.8s infinite}
-  @keyframes pulse{0%{opacity:1}50%{opacity:.55}100%{opacity:1}}
+  .live-indicator{display:inline-flex;gap:6px;align-items:center;background:#e74c3c;color:#fff;padding:5px 10px;border-radius:14px;font-size:12px;font-weight:700}
+  .pulse-dot{width:8px;height:8px;border-radius:50%;background:#fff;animation:pulse 2s infinite}
+  @keyframes pulse{0%{opacity:1}50%{opacity:.5}100%{opacity:1}}
 
-  /* MAIN */
-  .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-  .header{background:#fff;padding:18px 20px;box-shadow:0 2px 10px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:space-between}
-  .content{flex:1;overflow:auto;padding:20px}
+  .agents-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin-bottom:30px}
+  .agent-card{background:#fff;border-radius:15px;padding:20px;box-shadow:0 4px 14px rgba(0,0,0,.08);cursor:pointer;border-left:5px solid #3498db;transition:.2s}
+  .agent-card:hover{transform:translateY(-4px)}
+  .agent-card.top-sales{border-left-color:#f39c12;background:linear-gradient(135deg,#fff9e6,#fff)}
+  .agent-card.available{border-left-color:#2ecc71}
+  .agent-card.busy{border-left-color:#e74c3c}
+  .agent-card.away{border-left-color:#95a5a6}
+  .agent-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .agent-name{font-weight:700}
+  .agent-status{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700}
+  .status-available{background:#2ecc71;color:#fff}
+  .status-busy{background:#e74c3c;color:#fff}
+  .status-away{background:#f39c12;color:#fff}
+  .capacity-bar{background:#ecf0f1;height:12px;border-radius:6px;overflow:hidden;margin:10px 0}
+  .capacity-fill{height:100%;border-radius:6px;transition:width .4s}
+  .capacity-low{background:#2ecc71}.capacity-medium{background:#f39c12}.capacity-high{background:#e74c3c}
+  .agent-stats{display:flex;justify-content:space-between;margin-top:12px}
+  .stat-item{text-align:center}.stat-number{font-weight:800;color:#2c3e50}
 
-  .page{display:none}
-  .page.active{display:block}
+  .queue-management{background:#fff;border-radius:15px;padding:20px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+  .queue-item{display:flex;justify-content:space-between;align-items:center;padding:14px;margin:10px 0;background:#f8f9fa;border-left:4px solid #3498db;border-radius:10px;cursor:move}
+  .drag-handle{cursor:grab;color:#7f8c8d;font-size:18px}
 
-  /* CARDS / AGENTS */
-  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-  .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
-  .grid-auto{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+  .leads-container{display:grid;grid-template-columns:1fr 1fr;gap:30px;height:100%}
+  .leads-section{background:#fff;border-radius:15px;padding:20px;box-shadow:0 4px 14px rgba(0,0,0,.08);display:flex;flex-direction:column;overflow:hidden}
+  .section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding-bottom:12px;border-bottom:2px solid #ecf0f1}
+  .leads-list{flex:1;overflow-y:auto}
+  .lead-item{display:flex;gap:12px;align-items:center;background:#f8f9fa;border-radius:12px;padding:14px;margin:10px 0;border-left:4px solid #95a5a6;cursor:pointer;transition:.2s}
+  .lead-item:hover{transform:translateX(4px)}
+  .lead-item.hot{border-left-color:#e74c3c;background:linear-gradient(135deg,#ffebee,#f8f9fa)}
+  .lead-item.warm{border-left-color:#f39c12;background:linear-gradient(135deg,#fff8e1,#f8f9fa)}
+  .lead-score{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800}
+  .score-hot{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+  .score-warm{background:linear-gradient(135deg,#f39c12,#e67e22)}
+  .score-cold{background:linear-gradient(135deg,#95a5a6,#7f8c8d)}
+  .lead-name{font-weight:700}
+  .lead-details{font-size:14px;color:#7f8c8d}
+  .lead-timestamp{font-size:12px;color:#b4bcc2}
 
-  .card{background:var(--card);border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,.08);padding:20px}
-  .agent-card{position:relative;border-left:5px solid var(--ok)}
-  .agent-card.busy{border-left-color:var(--danger)}
-  .agent-card.break{border-left-color:#95a5a6}
-  .agent-card.top{background:linear-gradient(135deg,#fff9e6,#fff)}
-  .badge{font-size:12px;font-weight:800;border-radius:999px;padding:6px 12px}
-  .b-ok{background:var(--ok);color:#fff}
-  .b-warn{background:var(--warn);color:#fff}
-  .b-danger{background:var(--danger);color:#fff}
-  .progress{background:#ecf0f1;border-radius:8px;height:10px;overflow:hidden}
-  .progress > span{display:block;height:100%;background:var(--ok)}
-  .progress.busy > span{background:var(--danger)}
-  .meta{color:var(--muted);font-size:14px}
-
-  /* QUEUE */
-  .queue-item{display:flex;justify-content:space-between;align-items:center;padding:14px;margin:10px 0;background:#f8f9fa;border-left:4px solid var(--brand);border-radius:10px;cursor:move}
-  .drag{cursor:grab;color:#7f8c8d;font-size:18px}
-
-  /* LEADS LIST */
-  .lead{display:flex;gap:12px;align-items:center;background:#f8f9fa;border-radius:12px;padding:14px;margin:10px 0;border-left:4px solid #95a5a6;cursor:pointer}
-  .lead.hot{border-left-color:var(--danger);background:linear-gradient(135deg,#ffebee,#f8f9fa)}
-  .lead.warm{border-left-color:var(--warn);background:linear-gradient(135deg,#fff8e1,#f8f9fa)}
-  .pill-score{width:54px;height:54px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900}
-  .pill-hot{background:linear-gradient(135deg,#e74c3c,#c0392b)}
-  .pill-warm{background:linear-gradient(135deg,#f39c12,#e67e22)}
-  .pill-cold{background:linear-gradient(135deg,#95a5a6,#7f8c8d)}
-
-  /* CHAT (AI form) */
-  .chat-shell{background:#fff;border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,.08);height:calc(100vh - 160px);display:flex;flex-direction:column;overflow:hidden}
-  .chat-header{background:#25D366;color:#fff;padding:16px 18px;display:flex;justify-content:space-between;align-items:center}
-  .chat-body{flex:1;display:flex;overflow:hidden;background:#e5ddd5}
-  .chat-flow{flex:1;overflow:auto;padding:16px}
-  .message{max-width:70%;padding:12px 16px;margin:10px 0;border-radius:18px}
+  .chat-container{background:#fff;border-radius:15px;box-shadow:0 4px 14px rgba(0,0,0,.08);height:100%;display:flex;flex-direction:column;position:relative;padding-right:220px}
+  .chat-header{background:#25D366;color:#fff;padding:18px;border-radius:15px 15px 0 0;display:flex;justify-content:space-between}
+  .chat-messages{flex:1;overflow-y:auto;padding:18px;background:#e5ddd5}
+  .message{max-width:70%;padding:12px 16px;margin:10px 0;border-radius:18px;animation:msg .2s ease-out}
+  @keyframes msg{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
   .message-bot{background:#fff;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
   .message-user{background:#DCF8C6;align-self:flex-end;border-bottom-right-radius:4px;margin-left:auto;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-  .message-system{background:#fff3cd;border:2px solid #ffeaa7;text-align:center;max-width:90%;margin:10px auto}
-  /* Only animate normal messages; never system ones (prevents flashing) */
-  .message:not(.message-system){animation:msg .18s ease-out}
-  @keyframes msg{from{opacity:.2;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .message-system{background:#fff3cd!important;border:2px solid #ffeaa7!important;text-align:center!important;max-width:90%!important;margin:10px auto!important}
 
-  /* Sticky score panel inside chat; no extra white column on the page */
-  .score-panel{width:240px;background:rgba(255,255,255,.96);border-radius:12px;margin:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);height:max-content;position:sticky;top:80px}
-  .score-panel h4{padding:12px 12px 4px}
-  .score-bar{height:18px;margin:8px 12px;border-radius:10px;background:#e0e0e0;overflow:hidden}
-  .score-fill{height:100%}
-  .score-hot{background:linear-gradient(90deg,#ff8a80,#e53935)}
-  .score-warm{background:linear-gradient(90deg,#ffcc80,#fb8c00)}
-  .score-cold{background:linear-gradient(90deg,#cfd8dc,#90a4ae)}
+  /* sticky ALPS panel that follows scroll */
+  .score-display{position:sticky; top:16px; align-self:flex-end; margin:12px 12px 0 0; right:0; background:rgba(255,255,255,.98); padding:14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:200px;z-index:5}
+  .score-bar{height:20px;background:#e0e0e0;border-radius:10px;overflow:hidden;margin:8px 0}
+  .score-fill{height:100%;border-radius:10px;transition:width .4s}
 
-  /* Options UI (buttons) */
-  .options{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-  .btn-opt{padding:12px 14px;border-radius:20px;border:2px solid #e0e0e0;background:#f0f0f0;cursor:pointer;text-align:left}
-  .btn-opt:hover{background:#25D366;border-color:#25D366;color:#fff}
-  .grid-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px}
-  .choice{padding:12px;border:2px solid #e9ecef;border-radius:12px;text-align:center;background:#f8f9fa;cursor:pointer}
-  .choice:hover{background:#25D366;color:#fff;border-color:#25D366}
+  .sla-container{display:grid;grid-template-columns:1fr 2fr;gap:20px;height:100%}
+  .conversations-list{background:#fff;border-radius:15px;padding:20px;box-shadow:0 4px 14px rgba(0,0,0,.08);overflow-y:auto}
+  .conversation-item{padding:14px;margin:10px 0;background:#f8f9fa;border-radius:10px;border-left:4px solid #3498db;cursor:pointer;transition:.2s}
+  .conversation-item:hover{background:#e3f2fd;transform:translateX(4px)}
+  .conversation-item.sla-warning{border-left-color:#f39c12;background:#fff8e1}
+  .conversation-item.sla-breach{border-left-color:#e74c3c;background:#ffebee}
+  .sla-timer{display:flex;gap:10px;align-items:center;margin-top:8px}
+  .timer-negative{background:#f39c12;color:#fff;padding:5px 10px;border-radius:14px;font-weight:800}
+  .timer-positive{background:#e74c3c;color:#fff;padding:5px 10px;border-radius:14px;font-weight:800}
+  .sla-chat-area{background:#fff;border-radius:15px;box-shadow:0 4px 14px rgba(0,0,0,.08);display:flex;flex-direction:column}
+  .sla-chat-header{background:#34495e;color:#fff;padding:18px;border-radius:15px 15px 0 0;display:flex;justify-content:space-between;align-items:center}
+  .sla-messages{flex:1;overflow-y:auto;padding:18px;background:#f8f9fa}
+  .sla-input{display:flex;gap:10px;padding:18px;border-top:1px solid #ecf0f1}
+  .sla-input input{flex:1;padding:12px;border:2px solid #ecf0f1;border-radius:22px;outline:none}
+  .sla-input button{padding:12px 18px;border:none;border-radius:22px;color:#fff;background:#25D366;cursor:pointer}
 
-  /* Multi-select (uniform look) */
-  .checkbox-group{background:#fff;border-radius:14px;padding:12px;border:2px solid #eee;display:flex;flex-wrap:wrap;gap:10px}
-  .checkbox-chip{display:flex;align-items:center;gap:8px;border:2px solid #e0e0e0;background:#f7f7f7;border-radius:999px;padding:8px 12px;cursor:pointer}
-  .checkbox-chip input{accent-color:#25D366}
-  .checkbox-chip.selected{border-color:#25D366;background:#e8f5e9}
-  .btn-continue{border:none;background:#25D366;color:#fff;padding:10px 16px;border-radius:999px;cursor:pointer}
+  .options-container{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .option-button{padding:10px 14px;background:#f0f0f0;border:2px solid #e0e0e0;border-radius:20px;cursor:pointer;text-align:center}
+  .option-button:hover{background:#25D366;color:#fff;border-color:#25D366}
+  .property-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px}
+  .property-item{padding:12px;background:#f8f9fa;border:2px solid #e9ecef;border-radius:12px;text-align:center;cursor:pointer}
+  .property-item:hover{background:#25D366;color:#fff;border-color:#25D366}
+  .input-field{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:20px;margin-top:10px}
+  .typing-indicator{display:none;background:#fff;padding:14px;border-radius:18px;max-width:70%;border-bottom-left-radius:4px}
+  .typing-dots{display:flex;gap:4px}.typing-dot{width:8px;height:8px;background:#999;border-radius:50%;animation:typing 1.4s infinite}
+  .typing-dot:nth-child(2){animation-delay:.2s}.typing-dot:nth-child(3){animation-delay:.4s}
+  @keyframes typing{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-8px)}}
 
-  /* SLA */
-  .sla-layout{display:grid;grid-template-columns:360px 1fr;gap:20px}
-  .conv{padding:14px;margin:10px 0;background:#f8f9fa;border-radius:10px;border-left:4px solid var(--brand);cursor:pointer}
-  .conv.warning{background:#fff8e1;border-left-color:var(--warn)}
-  .conv.breach{background:#ffebee;border-left-color:var(--danger)}
-  .timer-pill{font-weight:800;border-radius:999px;padding:6px 10px;color:#fff}
-  .t-neg{background:var(--warn)}
-  .t-pos{background:var(--danger)}
-  .sla-chat{background:#fff;border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,.08);display:flex;flex-direction:column;min-height:520px}
-  .sla-top{background:#34495e;color:#fff;padding:16px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center}
-  .sla-feed{flex:1;overflow:auto;background:#f8f9fa;padding:16px}
-  .sla-input{display:flex;gap:10px;padding:16px;border-top:1px solid #ecf0f1;background:#fff}
-  .sla-input input{flex:1;padding:12px;border-radius:22px;border:2px solid #ecf0f1}
-  .sla-input button{padding:12px 18px;border-radius:22px;border:none;color:#fff;background:#25D366;cursor:pointer}
-  .sla-input .danger{background:#e74c3c}
+  .modal{display:none;position:fixed;z-index:1000;inset:0;background:rgba(0,0,0,.5)}
+  .modal-content{background:#fff;margin:5% auto;padding:24px;border-radius:14px;width:80%;max-width:820px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .close{float:right;font-size:26px;cursor:pointer;color:#666}
+  .btn{padding:10px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:700}
+  .btn-primary{background:#3498db;color:#fff}.btn-danger{background:#e74c3c;color:#fff}
 
-  /* Modal */
-  .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000}
-  .modal > .box{background:#fff;width:min(860px,92vw);margin:5% auto;border-radius:14px;padding:24px}
+  .sla-alert{position:fixed;z-index:1100;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:26px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;border-left:5px solid #e74c3c}
+  .alert-actions{display:flex;gap:12px;margin-top:16px;justify-content:center}
 
-  @media (max-width:1100px){
-    .grid-3{grid-template-columns:1fr}
-    .sla-layout{grid-template-columns:1fr}
-    .chat-body{flex-direction:column}
-    .score-panel{position:relative;top:0;margin:16px}
+  @media(max-width:900px){
+    .leads-container{grid-template-columns:1fr}
+    .sla-container{grid-template-columns:1fr}
+    .chat-container{padding-right:0}
+    .score-display{position:relative;top:0;right:0;margin:10px}
   }
 </style>
 </head>
 <body>
 <div class="dashboard">
-
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <h2 style="margin-bottom:16px">🏠 BeLive ALPS</h2>
+  <div class="sidebar">
+    <h2 style="margin-bottom:24px">🏠 BeLive ALPS</h2>
     <div class="nav-item active" data-page="agents"><span class="nav-icon">👥</span><span>Agent Status</span></div>
     <div class="nav-item" data-page="leads"><span class="nav-icon">📊</span><span>Lead Management</span></div>
     <div class="nav-item" data-page="chat"><span class="nav-icon">💬</span><span>Chat Window</span></div>
     <div class="nav-item" data-page="sla"><span class="nav-icon">⏱️</span><span>SLA Monitoring</span></div>
 
-    <div class="side-card">
-      <div class="live-pill"><span class="pulse"></span> LIVE</div>
-      <div style="margin-top:10px">
-        System Status: Active<br>
-        Last Update: <span id="lastUpdate">--:--:--</span>
+    <div style="margin-top:36px;padding:16px;background:rgba(255,255,255,.1);border-radius:10px">
+      <div class="live-indicator"><div class="pulse-dot"></div>LIVE</div>
+      <div style="margin-top:10px;font-size:14px">
+        System Status: Active<br/>Last Update: <span id="lastUpdate">--:--:--</span>
       </div>
     </div>
-  </aside>
+  </div>
 
-  <!-- MAIN -->
-  <main class="main">
+  <div class="main-content">
     <div class="header">
       <div>
-        <h1 id="title">Agent Status Dashboard</h1>
-        <div id="subtitle" style="color:var(--muted)">Real-time agent monitoring and queue management</div>
+        <h1 id="pageTitle">Agent Status Dashboard</h1>
+        <p id="pageSubtitle">Real-time agent monitoring and queue management</p>
       </div>
-      <div class="live-pill"><span class="pulse"></span> LIVE DASHBOARD</div>
+      <div class="live-indicator"><div class="pulse-dot"></div>LIVE DASHBOARD</div>
     </div>
 
-    <div class="content">
-
-      <!-- AGENTS -->
-      <section id="agents" class="page active">
-        <div id="agentCards" class="grid-3"></div>
-
-        <div class="card" style="margin-top:20px">
-          <h3>📑 Agent Queue Management</h3>
-          <div class="meta" style="margin-top:6px">Drag to reorder priority • Position 1 becomes <strong>Top Sales</strong></div>
-          <div id="queueList" style="margin-top:10px"></div>
+    <div class="content-area">
+      <!-- Agents -->
+      <div id="agents" class="page active">
+        <div class="agents-grid" id="agentsGrid">
+          <!-- populated by JS (keeps capacity in sync with active conversations) -->
         </div>
-      </section>
 
-      <!-- LEADS -->
-      <section id="leads" class="page">
-        <div class="grid-2">
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between">
-              <h3>🔥 Ongoing Leads</h3><div class="live-pill"><span class="pulse"></span> LIVE</div>
-            </div>
-            <div id="ongoingLeads" style="margin-top:8px"></div>
-          </div>
+        <div class="queue-management">
+          <h3 style="margin-bottom:12px">📋 Agent Queue Management</h3>
+          <p style="margin-bottom:10px;color:#7f8c8d">Drag to reorder priority • Position 1 becomes <b>Top Sales</b></p>
 
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between">
-              <h3>🧾 Past Leads</h3><div class="meta">Last 24 hours</div>
-            </div>
-            <div id="pastLeads" style="margin-top:8px"></div>
+          <div id="queueList"></div>
+
+          <div style="margin-top:16px;padding:12px;background:#e8f5e8;border-radius:10px">
+            <strong>💡 Management Controls:</strong>
+            <button class="btn btn-primary" onclick="promoteToTopSales()" style="margin:10px 6px">Promote Selected to Top Sales</button>
+            <button class="btn btn-danger" onclick="removeFromQueue()" style="margin:10px 6px">Remove from Queue</button>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- CHAT (AI) -->
-      <section id="chat" class="page">
-        <div class="chat-shell">
+      <!-- Leads -->
+      <div id="leads" class="page">
+        <div class="leads-container">
+          <div class="leads-section">
+            <div class="section-header">
+              <h3>🔥 Ongoing Leads</h3>
+              <div class="live-indicator"><div class="pulse-dot"></div>LIVE</div>
+            </div>
+            <div class="leads-list" id="ongoingLeads"></div>
+          </div>
+
+          <div class="leads-section">
+            <div class="section-header">
+              <h3>📋 Past Leads</h3>
+              <div style="font-size:14px;color:#7f8c8d">Last 24 hours</div>
+            </div>
+            <div class="leads-list" id="pastLeads"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat -->
+      <div id="chat" class="page">
+        <div class="chat-container">
           <div class="chat-header">
             <div>
               <h3>🤖 BeLive AI Assistant</h3>
-              <div>AI-powered lead qualification system</div>
+              <div>Lead Qualification Chat • No Timer (AI Handling)</div>
             </div>
           </div>
 
-          <div class="chat-body">
-            <!-- flow (messages) -->
-            <div id="chatFlow" class="chat-flow"></div>
+          <div class="score-display" id="scoreFloater">
+            <h4>ALPS Score</h4>
+            <div class="score-bar"><div class="score-fill score-cold" id="chatScoreBar" style="width:0%"></div></div>
+            <div id="chatScoreText">0 / 100</div>
+            <div id="chatScoreCategory">Getting Started</div>
+          </div>
 
-            <!-- sticky score panel (no right white strip) -->
-            <div class="score-panel" id="aiScorePanel">
-              <h4>ALPS Score</h4>
-              <div class="score-bar"><div id="aiScoreFill" class="score-fill score-cold" style="width:0%"></div></div>
-              <div id="aiScoreText" style="padding:0 12px 10px;font-weight:700">0 / 100</div>
-              <div id="aiScoreTag" style="padding:0 12px 12px;color:var(--muted)">Getting started</div>
+          <div class="chat-messages" id="chatMessages">
+            <div class="typing-indicator" id="typingIndicator">
+              <div class="typing-dots">
+                <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+              </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
       <!-- SLA -->
-      <section id="sla" class="page">
-        <div class="sla-layout">
-          <div class="card">
-            <h3 id="convListTitle">💬 Active Conversations</h3>
-            <div class="meta" id="convSubTitle" style="margin-top:6px">Click a conversation to manage</div>
-            <div id="convList" style="margin-top:10px"></div>
+      <div id="sla" class="page">
+        <div class="sla-container">
+          <div class="conversations-list" id="conversationsList">
+            <!-- populated by JS -->
           </div>
 
-          <div class="sla-chat">
-            <div class="sla-top">
+          <div class="sla-chat-area">
+            <div class="sla-chat-header">
               <div>
-                <div id="slaHdrTitle" style="font-weight:800">Select a conversation</div>
-                <div id="slaHdrMeta" style="color:#cdd6df">Click a conversation to view details</div>
+                <h3 id="slaCurrentChat">Select a conversation</h3>
+                <div id="slaCurrentDetails">Click on a conversation to view details</div>
               </div>
-              <div id="slaHdrTimer" class="badge" style="background:rgba(255,255,255,.2)">--:--</div>
+              <div id="slaCurrentTimer" style="background:rgba(255,255,255,.2);padding:10px;border-radius:10px">--:--</div>
             </div>
-            <div id="slaFeed" class="sla-feed">
-              <div style="text-align:center;color:var(--muted);margin-top:40px">
-                <h3>📟 SLA Chat Monitor</h3>
-                <p>Select a conversation on the left</p>
+
+            <div class="sla-messages" id="slaMessages">
+              <div style="text-align:center;color:#7f8c8d;margin-top:40px">
+                <h3>💬 SLA Chat Monitor</h3>
+                <p>Select a conversation from the left to view and manage the chat</p>
               </div>
             </div>
-            <div class="sla-input">
-              <input id="slaInput" placeholder="Type your message..." onkeypress="if(event.key==='Enter'){sendSlaMsg();}">
-              <button onclick="sendSlaMsg()">Send</button>
-              <button class="danger" onclick="escalate()">Escalate</button>
+
+            <div class="sla-input" id="slaInputArea" style="display:none">
+              <input id="slaMessageInput" type="text" placeholder="Type your message..." onkeypress="handleSLAMessage(event)"/>
+              <button onclick="sendSLAMessage()">Send</button>
+              <button onclick="escalateConversation()" style="background:#e74c3c">Escalate</button>
             </div>
           </div>
         </div>
-      </section>
-
+      </div>
     </div>
-  </main>
+  </div>
 </div>
 
-<!-- Lead chart modal -->
-<div id="chartModal" class="modal"><div class="box">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <h3 id="chartTitle">Lead Score Progression</h3>
-    <button onclick="closeModal()" class="badge" style="background:#eceff1;color:#455a64;border:none;cursor:pointer">Close</button>
+<!-- Lead Chart Modal -->
+<div id="chartModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <h2 id="chartTitle">Lead Score Progression</h2>
+    <canvas id="leadChart" width="400" height="200"></canvas>
+    <div id="chartDetails" style="margin-top:12px"></div>
   </div>
-  <canvas id="leadChart" height="160"></canvas>
-  <div id="chartInfo" style="margin-top:12px;color:var(--muted)"></div>
-</div></div>
+</div>
+
+<!-- SLA Alert -->
+<div id="slaAlert" class="sla-alert">
+  <h3>🚨 SLA BREACH ALERT</h3>
+  <p>Agent has not responded within the SLA timeframe</p>
+  <div style="margin:12px 0;padding:12px;background:#fff3cd;border-radius:8px">
+    <strong>Conversation:</strong> <span id="alertConversation">Lead #</span><br/>
+    <strong>Agent:</strong> <span id="alertAgent">-</span><br/>
+    <strong>Time Exceeded:</strong> <span id="alertTime">+0:01</span>
+  </div>
+  <div class="alert-actions">
+    <button class="btn btn-primary" onclick="goToConversation()">Go to Conversation</button>
+    <button class="btn btn-danger" onclick="reassignConversation()">Reassign</button>
+  </div>
+</div>
 
 <script>
-/* ===========================================================
-   GLOBAL STATE
-=========================================================== */
-const AGENTS = [
-  {id:'agent1', name:'Lisa Wong',   status:'available',  sla:90, avg:8.9,  leadsToday:24, top:true},
-  {id:'agent2', name:'Mike Johnson',status:'busy',       sla:88, avg:8.7,  leadsToday:21, top:false},
-  {id:'agent3', name:'Sarah Chen',  status:'available',  sla:86, avg:8.5,  leadsToday:18, top:false},
-  {id:'agent4', name:'David Lim',   status:'break',      sla:84, avg:8.3,  leadsToday:15, top:false},
-  {id:'agent5', name:'Jennifer Tan',status:'available',  sla:82, avg:8.1,  leadsToday:12, top:false}
-];
-// conversations kept per agent & global map
-const agentConvs = {agent1:[],agent2:[],agent3:[],agent4:[],agent5:[]};
-const convMap = {}; // id -> conv
-let rrIndex = 0;     // round robin pointer (follows queue order)
+'use strict';
+
+/* ======= CONFIG (for your future model/API) ======= */
+const MODEL_SOURCE = 'client'; // 'client' | 'server'
+const SCORE_ENDPOINT = '/api/score'; // when MODEL_SOURCE === 'server'
+
+/* ======= GLOBAL STATE ======= */
 let currentPage = 'agents';
-let currentAgentFilter = null; // which agent list is open in SLA
-let selectedConvId = null;
+let currentListView = {type:'all', id:null}; // which SLA list is showing
+let selectedConversation = null;
+let lastAlertConvId = null;
+
 let leadChart = null;
+let realTimeInterval;
 
-/* ===========================================================
-   UTIL
-=========================================================== */
-const $ = sel => document.querySelector(sel);
-const $$ = sel => [...document.querySelectorAll(sel)];
+const agentOrder = ['agent1','agent2','agent3','agent4','agent5'];
+const AGENTS = {
+  agent1:{name:'👑 Sarah Chen', role:'Top Sales Agent', status:'available'},
+  agent2:{name:'Mike Johnson', role:'Agent', status:'busy'},
+  agent3:{name:'Lisa Wong', role:'Agent', status:'available'},
+  agent4:{name:'David Lim', role:'Agent', status:'away'},
+  agent5:{name:'Jennifer Tan', role:'Agent', status:'available'}
+};
+const agentConversations = {agent1:[],agent2:[],agent3:[],agent4:[],agent5:[]};
+const activeConversations = {}; // id -> conversation object
 
-function fmt2(n){ return Number(n).toFixed(2); }
-function nowTime(){ return new Date().toLocaleTimeString(); }
-function pad(n){ return n.toString().padStart(2,'0'); }
-function mmss(sec){ const m=Math.floor(sec/60), s=pad(sec%60); return `${m}:${s}`; }
+// seeded legacy list still visible in “All” (left) until replaced by runtime
+const legacySLAs = {
+  conv1:{negative:443,positive:0,breached:false,meta:{title:'Lead #2024001 • Sarah Chen',area:'Mont Kiara',score:87,status:'Active'}},
+  conv2:{negative:135,positive:0,breached:false,meta:{title:'Lead #2024002 • Mike Johnson',area:'KL/Selangor',score:82,status:'Warning'}},
+  conv3:{negative:0,positive:225,breached:true, meta:{title:'Lead #2024003 • Lisa Wong',area:'Petaling Jaya',score:65,status:'Breach'}},
+  conv4:{negative:522,positive:0,breached:false,meta:{title:'Lead #2024004 • In Queue',area:'JB/Penang',score:58,status:'Waiting'}}
+};
 
-// compute capacity from convs (no random!)
-function computeCapacity(agentId){
-  const active = agentConvs[agentId].filter(c => !c.aiHandling).length;
-  return {used:active, total:10};
-}
+let nextLeadId = 2024006;
+let completedLeads = [];   // for chart modal
 
-/* ===========================================================
-   NAV + PAGES
-=========================================================== */
-$$('.nav-item').forEach(item=>{
-  item.addEventListener('click',()=>{
-    $$('.nav-item').forEach(n=>n.classList.remove('active'));
-    item.classList.add('active');
-    const page = item.dataset.page;
-    currentPage = page;
-    $$('.page').forEach(p=>p.classList.remove('active'));
-    $('#'+page).classList.add('active');
-    const t = {agents:'Agent Status Dashboard',leads:'Lead Management',chat:'AI Chat Interface',sla:'SLA Monitoring'};
-    const s = {agents:'Real-time agent monitoring and queue management',leads:'Lead scoring and progression tracking',chat:'AI-powered lead qualification system',sla:'Response time monitoring and escalation'};
-    $('#title').textContent=t[page]; $('#subtitle').textContent=s[page];
-    if(page==='chat') bootChat();
-    if(page==='agents') renderAgents();
-    if(page==='leads') refreshLeads();
-    if(page==='sla'){ currentAgentFilter=null; renderConvList(); }
+// Chat (AI) state
+let chatCurrentStep = 0;
+let chatUserResponses = {};
+let chatAlpsScore = 0;
+
+// Questions (nationality gets “Others” free-text follow-up)
+const AREAS = ["KL/Selangor","Perak","JB/Penang","Negeri Sembilan","Genting Highlands"];
+const PROPERTIES = ["121 Residence","7 Tree Seven","Acacia Residence","Ara Damansara","Ampang","Arte Cheras","Astoria","Austin Regency","Bandar Sri Permaisuri","Bora Residence","Bukit Jalil","Cheras","D'Cosmos","Duta Park","Emporis Kota Damansara","Epic Residence","HighPark Suites","Icon City","Kelana Jaya","Keramat","Kota Damansara","M Vertica","Majestic Maxim","Medini Signature","Meta City","MH Platinum 2","Mont Kiara","One Cochrane","Parc3","Petaling Jaya","Pinnacle","Platinum Splendor","Razak City Residences","Rica Residence","Sentul","Setapak","Subang Jaya","Sunway Avila","Sunway Serene","Trion KL","Vista Sentul","Vivo Residence"];
+
+const questions = [
+  {id:'area',text:"Hi! Welcome to BeLive. I'm here to help you find the perfect room. Choose an area:",type:'select',options:AREAS,weight:15},
+  {id:'property',text:"Great choice! Here are the available properties in your selected area:",type:'property_select',weight:10},
+  {id:'budget',text:"What's your budget range for monthly rent?",type:'input',placeholder:'e.g., 800',weight:25},
+  {id:'pax',text:'How many people will be staying?',type:'select',options:['1 person','2 people','More than 2'],weight:10},
+  {id:'car',text:'Do you have a car?',type:'select',options:['Yes','No'],weight:5},
+  {id:'parking',text:'Do you need a car park lot?',type:'select',options:['Yes','No'],weight:5},
+  {id:'movein',text:'When are you planning to move in?',type:'date',weight:20},
+  {id:'tenancy',text:"What's your preferred tenancy period?",type:'select',options:['6 months','12 months'],weight:5},
+  {id:'gender',text:"What's your gender?",type:'select',options:['Male','Female'],weight:0},
+  {id:'unit_spec',text:'What type of unit do you prefer? (You can select multiple)',type:'multiple',options:['Female unit','Male unit','Mixed Gender unit'],weight:5},
+  {id:'workplace',text:'Where is your workplace? This helps us recommend the closest property.',type:'input',placeholder:'e.g., KLCC, Cyberjaya',weight:10},
+  {id:'nationality',text:"What's your nationality?",type:'select',options:['Malaysian','Others'],weight:8}
+];
+
+/* ======= INIT ======= */
+document.addEventListener('DOMContentLoaded', () => {
+  // nav
+  document.querySelectorAll('.nav-item').forEach(item=>{
+    item.addEventListener('click',()=>switchPage(item.dataset.page));
   });
+
+  // build agents grid + queue once
+  renderAgentsGrid();
+  renderQueueFromAgents();
+
+  // click agent card to jump to SLA
+  document.getElementById('agentsGrid').addEventListener('click', (e)=>{
+    const card = e.target.closest('.agent-card');
+    if(!card) return;
+    goToAgentConversations(card.dataset.agent);
+  });
+
+  initializeDragAndDrop();
+  startRealTimeLoop();
+
+  // Seed a couple of runtime conversations so you can test agent views
+  seedDemoConversations();
 });
 
-/* ===========================================================
-   AGENT CARDS + QUEUE
-=========================================================== */
-function renderAgents(){
-  const box = $('#agentCards'); box.innerHTML='';
-  AGENTS.forEach(a=>{
-    const cap = computeCapacity(a.id);
-    const busy = cap.used/cap.total >= .8 || a.status==='busy';
-    const card = document.createElement('div');
-    card.className = `card agent-card ${a.top?'top':''} ${busy?'busy':''} ${a.status==='break'?'break':''}`;
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3>${a.top?'👑 ':''}${a.name}</h3>
-        <span class="badge ${a.status==='available'?'b-ok':a.status==='busy'?'b-danger':'b-warn'}">${a.status==='break'?'Break':a.status[0].toUpperCase()+a.status.slice(1)}</span>
-      </div>
-      <div class="meta" style="margin:6px 0">${a.top?'Top Sales Agent':'Agent'} • Queue Position: ${queueOrder().indexOf(a.id)+1}</div>
-      <div class="progress ${busy?'busy':''}" style="margin:8px 0"><span style="width:${(cap.used/cap.total)*100}%"></span></div>
-      <div class="meta">Capacity: ${cap.used}/${cap.total} chats</div>
-      <div style="display:flex;justify-content:space-between;margin-top:10px">
-        <div><div style="font-weight:800">${a.sla}%</div><div class="meta">SLA Rate</div></div>
-        <div><div style="font-weight:800">${fmt2(a.avg)}</div><div class="meta">Avg Score</div></div>
-        <div><div style="font-weight:800">${a.leadsToday}</div><div class="meta">Leads Today</div></div>
-      </div>
-    `;
-    card.style.cursor='pointer';
-    card.onclick = ()=>{
-      $('.nav-item[data-page="sla"]').click();
-      setTimeout(()=>openAgentInSla(a.id),50);
-    };
-    box.appendChild(card);
-  });
-
-  // queue list
-  const q = $('#queueList'); q.innerHTML='';
-  queueOrder().forEach((id,i)=>{
-    const a=AGENTS.find(x=>x.id===id);
-    const row=document.createElement('div');
-    row.className='queue-item'; row.draggable=true; row.dataset.agent=id;
-    row.innerHTML=`
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="drag">≡</div>
-        <div>${i===0?'👑 ':''}<strong>${a.name}</strong> - ${i===0?'Top Sales':'Agent'}</div>
-      </div>
-      <div class="meta">Position: ${i+1}</div>
-    `;
-    q.appendChild(row);
-  });
-  wireQueueDrag();
+/* ======= NAV ======= */
+function switchPage(pageName){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById(pageName).classList.add('active');
+  document.querySelector(`.nav-item[data-page="${pageName}"]`).classList.add('active');
+  currentPage = pageName;
+  const t={agents:'Agent Status Dashboard',leads:'Lead Management',chat:'AI Chat Interface',sla:'SLA Monitoring'};
+  const s={agents:'Real-time agent monitoring and queue management',leads:'Lead scoring and progression tracking',chat:'AI-powered lead qualification system',sla:'Response time monitoring and escalation'};
+  document.getElementById('pageTitle').textContent=t[pageName];
+  document.getElementById('pageSubtitle').textContent=s[pageName];
+  if(pageName==='chat'){ setTimeout(initializeChat,200); }
+  if(pageName==='sla'){ showAllConversations(); }
 }
 
-function queueOrder(){
-  if(!queueOrder._list){
-    const list = [...AGENTS].sort((x,y)=> (y.top?1:0) - (x.top?1:0));
-    queueOrder._list = list.map(a=>a.id);
-  }
-  return queueOrder._list;
+/* ======= REAL-TIME LOOP ======= */
+function startRealTimeLoop(){
+  clearInterval(realTimeInterval);
+  realTimeInterval = setInterval(()=>{
+    document.getElementById('lastUpdate').textContent=new Date().toLocaleTimeString();
+    syncAgentCapacitiesToConversations();
+    tickSLATimers();
+  },1000);
 }
 
-function setQueueOrder(newOrder){
-  queueOrder._list = newOrder;
-  AGENTS.forEach(a=>a.top = (a.id===newOrder[0]));
-  renderAgents();
-}
-
-function wireQueueDrag(){
-  const list = $('#queueList');
-  let dragEl=null;
-  list.addEventListener('dragstart',e=>{
-    if(e.target.classList.contains('queue-item')){
-      dragEl=e.target; e.dataTransfer.effectAllowed="move"; e.target.style.opacity=".5";
-    }
-  });
-  list.addEventListener('dragend',e=>{ if(dragEl) dragEl.style.opacity=""; });
-  list.addEventListener('dragover',e=>e.preventDefault());
-  list.addEventListener('drop',e=>{
-    e.preventDefault();
-    const tgt = e.target.closest('.queue-item');
-    if(dragEl && tgt && dragEl!==tgt){
-      const rect=tgt.getBoundingClientRect();
-      const before = e.clientY < rect.top+rect.height/2;
-      list.insertBefore(dragEl, before?tgt:tgt.nextSibling);
-      const order = [...list.querySelectorAll('.queue-item')].map(x=>x.dataset.agent);
-      setQueueOrder(order);
-      rrIndex = 0; // reset round-robin pointer
-    }
+/* ======= AGENTS (capacity now = number of active conversations) ======= */
+function syncAgentCapacitiesToConversations(){
+  // Update bars strictly from active conversations count
+  agentOrder.forEach(agentId=>{
+    const card = document.querySelector(`.agent-card[data-agent="${agentId}"]`);
+    if(!card) return;
+    const count = agentConversations[agentId].length;
+    const bar = card.querySelector('.capacity-fill');
+    const txt = card.querySelector('.capacity-text');
+    const pct = Math.min(100, (count/10)*100);
+    bar.style.width = pct+'%';
+    bar.className = 'capacity-fill ' + (pct<=30?'capacity-low':pct<=70?'capacity-medium':'capacity-high');
+    txt.textContent = `Capacity: ${count}/10 chats`;
   });
 }
 
-/* ===========================================================
-   LEAD MGMT LISTS
-=========================================================== */
-function leadSeverity(score){ return score>=70?'hot':score>=40?'warm':'cold'; }
-function refreshLeads(){
-  const ongoing = $('#ongoingLeads'); ongoing.innerHTML='';
-  Object.values(convMap).forEach(c=>{
-    const el=document.createElement('div');
-    const sev=leadSeverity(c.score);
-    el.className=`lead ${sev}`;
-    el.onclick=()=>openChartForConv(c.id);
-    const pillClass = sev==='hot'?'pill-hot':sev==='warm'?'pill-warm':'pill-cold';
-    el.innerHTML = `
-      <div class="pill-score ${pillClass}">${c.score}</div>
-      <div>
-        <div style="font-weight:800">🔥 Lead ${c.leadNo}</div>
-        <div class="meta">Area: ${c.area} • Budget: RM${c.budget} • Agent: ${c.agentName||'AI Bot'}</div>
-        <div class="meta">Started: ${new Date(c.createdAt).toLocaleTimeString()} • Status: ${c.aiHandling?'AI Handling':'Assigned'}</div>
+function renderAgentsGrid(){
+  const grid = document.getElementById('agentsGrid');
+  grid.innerHTML = '';
+  agentOrder.forEach((id, index)=>{
+    const a = AGENTS[id];
+    const cap = agentConversations[id].length; // start at 0, grows with conversations
+    const statusClass = a.status==='available'?'status-available':a.status==='busy'?'status-busy':'status-away';
+    const borderClass = a.status==='available'?'available':a.status==='busy'?'busy':'away';
+    grid.innerHTML += `
+      <div class="agent-card ${borderClass} ${index===0?'top-sales':''}" data-agent="${id}">
+        <div class="agent-header">
+          <div class="agent-name">${a.name}</div>
+          <div class="agent-status ${statusClass}">${a.status==='available'?'Available':a.status==='busy'?'Busy':'Break'}</div>
+        </div>
+        <div>${index===0?'Top Sales Agent':'Agent'} • Queue Position: ${index+1}</div>
+        <div class="capacity-bar"><div class="capacity-fill capacity-low" style="width:${(cap/10)*100}%"></div></div>
+        <div class="capacity-text">Capacity: ${cap}/10 chats</div>
+        <div class="agent-stats">
+          <div class="stat-item"><div class="stat-number">${90-index*2}%</div><div class="stat-label">SLA Rate</div></div>
+          <div class="stat-item"><div class="stat-number">${8.9-index*0.2}</div><div class="stat-label">Avg Score</div></div>
+          <div class="stat-item"><div class="stat-number">${24-index*3}</div><div class="stat-label">Leads Today</div></div>
+        </div>
       </div>`;
-    ongoing.appendChild(el);
   });
-
-  $('#pastLeads').innerHTML='';
 }
 
-/* ===========================================================
-   CHART MODAL (lead progression)
-=========================================================== */
-function openChartForConv(convId){
-  const c = convMap[convId];
-  if(!c) return;
-  $('#chartTitle').textContent = `Lead ${c.leadNo} - Score Progression`;
-  $('#chartModal').style.display='block';
-  const ctx = $('#leadChart').getContext('2d');
-  if(leadChart) leadChart.destroy();
-  leadChart = new Chart(ctx,{
-    type:'line',
-    data:{labels:c.scoreHistory.map((_,i)=>i),datasets:[{label:'ALPS',data:c.scoreHistory,fill:true,borderColor:'#3498db',backgroundColor:'rgba(52,152,219,.12)',tension:.4}]},
-    options:{plugins:{legend:{display:false}},scales:{y:{min:0,max:100}}}
+function renderQueueFromAgents(){
+  const q = document.getElementById('queueList');
+  q.innerHTML = '';
+  agentOrder.forEach((id, i)=>{
+    q.innerHTML += `
+      <div class="queue-item" draggable="true" data-agent="${id}" data-position="${i+1}">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="drag-handle">≡</div>
+          <div>${i===0?'👑 ':''}<strong>${AGENTS[id].name.replace('👑 ','')}</strong> - ${i===0?'Top Sales':'Agent'}</div>
+        </div>
+        <div class="position-text">Position: ${i+1}</div>
+      </div>`;
   });
-  $('#chartInfo').textContent = `Current: ${c.score}  •  Min: ${Math.min(...c.scoreHistory)}  •  Max: ${Math.max(...c.scoreHistory)}  •  Growth: +${c.score - c.scoreHistory[0]}`;
 }
-function closeModal(){ $('#chartModal').style.display='none'; if(leadChart){leadChart.destroy(); leadChart=null;} }
 
-/* ===========================================================
-   ROUND ROBIN ROUTING
-=========================================================== */
-function nextAgentForAssignment(){
-  const order = queueOrder();
-  const total = order.length;
-  for(let i=0;i<total;i++){
-    const idx = (rrIndex + i) % total;
-    const id = order[idx];
-    const a = AGENTS.find(x=>x.id===id);
-    if(a.status!=='available') continue;
-    const cap = computeCapacity(id);
-    if(cap.used < cap.total){
-      rrIndex = (idx+1) % total; // advance pointer
-      return a;
+/* ======= SLA / CONVERSATIONS ======= */
+function tickSLATimers(){
+  // runtime convs
+  Object.values(activeConversations).forEach(conv=>{
+    const t = conv.slaTimer;
+    if(!t) return;
+
+    if(t.timeRemaining>0){
+      t.timeRemaining--;
+      if(t.timeRemaining<=0){
+        if(t.type==='initial'){
+          reassignToNextAgent(conv);
+        }else{
+          t.alertTriggered = true;
+          t.overdue = 1;
+          showSlaAlert(conv.id);
+        }
+      }
+    }else if(t.overdue>0 || t.alertTriggered){
+      t.overdue++;
+    }
+    updateConversationListItem(conv.id);
+    if(selectedConversation===conv.id) loadActiveConversation(conv); // live header/timer
+  });
+
+  // legacy list visual countdown
+  Object.keys(legacySLAs).forEach(id=>{
+    const t = legacySLAs[id];
+    if(!t) return;
+    const el = document.querySelector(`[data-legacy="${id}"] .timer-badge`);
+    const wrapper = document.querySelector(`[data-legacy="${id}"]`);
+    if(!el||!wrapper) return;
+
+    if(!t.breached){
+      t.negative--;
+      if(t.negative<=0){ t.breached=true; t.positive=Math.abs(t.negative); t.negative=0; }
+      const m=Math.floor(t.negative/60), s=(t.negative%60).toString().padStart(2,'0');
+      el.textContent = `-${m}:${s}`;
+      el.className = 'timer-badge timer-negative';
+      wrapper.className = 'conversation-item' + (t.negative<=120?' sla-warning':'');
+    }else{
+      t.positive++;
+      const m=Math.floor(t.positive/60), s=(t.positive%60).toString().padStart(2,'0');
+      el.textContent = `+${m}:${s}`;
+      el.className = 'timer-badge timer-positive';
+      wrapper.className = 'conversation-item sla-breach';
+    }
+  });
+}
+
+function updateConversationListItem(convId){
+  const conv = activeConversations[convId];
+  if(!conv) return;
+  const row = document.querySelector(`[data-conv="${convId}"]`);
+  if(!row) return;
+
+  const tInfo = getConversationTimer(conv);
+  const sInfo = getConversationStatus(conv);
+  row.querySelector('.status-indicator').textContent = sInfo.status;
+  row.querySelector('.status-indicator').style.color = sInfo.color;
+  const timer = row.querySelector('.timer-badge');
+  timer.textContent = tInfo.text;
+  timer.className = 'timer-badge ' + tInfo.class;
+  row.className = getConversationClass(conv) + ' conversation-item';
+}
+
+function showAllConversations(){
+  currentListView = {type:'all', id:null};
+  const list = document.getElementById('conversationsList');
+  list.innerHTML = `
+    <h3 style="margin-bottom:12px">💬 Active Conversations</h3>
+    <div style="margin-bottom:10px;font-size:14px;color:#7f8c8d">Click on any conversation to manage</div>
+    <div id="convList"></div>`;
+  const container = list.querySelector('#convList');
+
+  // runtime convs first
+  Object.values(activeConversations).forEach(c=>container.appendChild(buildConversationRow(c)));
+
+  // legacy (demo)
+  Object.entries(legacySLAs).forEach(([id,t])=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'conversation-item ' + (t.meta.status==='Warning'?'sla-warning':t.meta.status==='Breach'?'sla-breach':'');
+    wrap.dataset.legacy = id;
+    wrap.onclick = ()=>openSLAChat(id); // legacy open
+    const mm = !t.breached ? Math.floor(t.negative/60) : Math.floor(t.positive/60);
+    const ss = (!t.breached ? t.negative%60 : t.positive%60).toString().padStart(2,'0');
+    const sign = t.breached?'+':'-';
+    const klass = t.breached?'timer-positive':'timer-negative';
+    wrap.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div><div><strong>${t.meta.title}</strong></div><div style="font-size:14px;color:#7f8c8d">${t.meta.area} • ALPS: ${t.meta.score}</div></div>
+        <div style="text-align:right"><div class="status-indicator" style="font-size:12px">${t.meta.status}</div></div>
+      </div>
+      <div class="sla-timer"><div class="timer-badge ${klass}">${sign}${mm}:${ss}</div><div style="font-size:12px">${t.meta.status==='Breach'?'SLA breached':'Next response due'}</div></div>`;
+    container.appendChild(wrap);
+  });
+}
+
+function showAgentConversationsList(agentId){
+  currentListView = {type:'agent', id:agentId};
+  const list = document.getElementById('conversationsList');
+  const name = AGENTS[agentId].name.replace('👑 ','');
+  const convs = agentConversations[agentId];
+
+  list.innerHTML = `
+    <h3 style="margin-bottom:12px">💬 ${name}'s Conversations</h3>
+    <div style="margin-bottom:10px;font-size:14px;color:#7f8c8d">Active: ${convs.length} conversations</div>
+    <button onclick="showAllConversations()" class="btn btn-primary" style="margin-bottom:10px">← Back to All Conversations</button>
+    <div id="convList"></div>`;
+  const container = list.querySelector('#convList');
+
+  if(!convs.length){
+    container.innerHTML = `<div style="text-align:center;color:#7f8c8d;margin-top:40px"><p>No active conversations</p></div>`;
+    // also clear right panel
+    selectedConversation = null;
+    document.getElementById('slaMessages').innerHTML = `<div style="text-align:center;color:#7f8c8d;margin-top:40px"><p>Select a conversation</p></div>`;
+    document.getElementById('slaInputArea').style.display='none';
+    return;
+  }
+
+  convs.forEach(c=>container.appendChild(buildConversationRow(c)));
+  // open the first by default if none selected or selected not in this list
+  const openFirst = !selectedConversation || !convs.some(c=>c.id===selectedConversation);
+  if(openFirst) openSLAChat(convs[0].id);
+}
+
+function buildConversationRow(conv){
+  const el = document.createElement('div');
+  el.className = getConversationClass(conv) + ' conversation-item';
+  el.dataset.conv = conv.id;
+  el.onclick = ()=>openSLAChat(conv.id);
+  const s = getConversationStatus(conv);
+  const t = getConversationTimer(conv);
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:start">
+      <div><div><strong>Lead ${conv.leadNumber}</strong> • ${conv.agentName}</div><div style="font-size:14px;color:#7f8c8d">${conv.area} • ALPS: ${conv.score}</div></div>
+      <div style="text-align:right"><div class="status-indicator" style="font-size:12px">${s.status}</div></div>
+    </div>
+    <div class="sla-timer"><div class="timer-badge ${t.class}">${t.text}</div><div style="font-size:12px">${t.description}</div></div>`;
+  return el;
+}
+
+function openSLAChat(id){
+  selectedConversation = id;
+
+  // runtime convs
+  if(activeConversations[id]){
+    loadActiveConversation(activeConversations[id]);
+    return;
+  }
+
+  // legacy (demo)
+  const l = {
+    conv1:{title:'Lead #2024001 - Sarah Chen',details:'Mont Kiara • ALPS: 87 • Active for 12 mins',messages:[
+      {type:'customer',text:"Hi, I'm looking for a room in Mont Kiara area",time:'14:32'},
+      {type:'agent',text:'Hello! Happy to help. What\'s your budget?',time:'14:33'},
+      {type:'customer',text:'Around RM1200. Need to move in within 3 days.',time:'14:34'},
+      {type:'agent',text:'Great! I have several options. Sharing now…',time:'14:35'}
+    ]},
+    conv2:{title:'Lead #2024002 - Mike Johnson',details:'KL/Selangor • ALPS: 82 • Response overdue',messages:[
+      {type:'customer',text:'Hello, I saw your KL listing.',time:'14:45'},
+      {type:'agent',text:'Hi! Which area in KL?',time:'14:46'},
+      {type:'customer',text:'Near public transport. Budget ~RM900',time:'14:47'}
+    ]},
+    conv3:{title:'Lead #2024003 - Lisa Wong',details:'Petaling Jaya • ALPS: 65 • SLA Breached',messages:[
+      {type:'customer',text:'Hi, looking for accommodation in PJ',time:'14:52'},
+      {type:'agent',text:'Sure! What type are you after?',time:'14:53'},
+      {type:'customer',text:'Single room, RM750. When can I view?',time:'14:54'}
+    ]},
+    conv4:{title:'Lead #2024004 - In Queue',details:'JB/Penang • ALPS: 58 • Waiting',messages:[
+      {type:'system',text:'Waiting for agent assignment',time:'--:--'}
+    ]}
+  }[id];
+
+  if(!l) return;
+  document.getElementById('slaCurrentChat').textContent = l.title;
+  document.getElementById('slaCurrentDetails').textContent = l.details;
+  const t = legacySLAs[id];
+  const timerEl = document.getElementById('slaCurrentTimer');
+  if(t){
+    const m = (!t.breached?Math.floor(t.negative/60):Math.floor(t.positive/60));
+    const s = (!t.breached?t.negative%60:t.positive%60).toString().padStart(2,'0');
+    timerEl.textContent = `${t.breached?'+':'-'}${m}:${s}`;
+    timerEl.style.background = t.breached?'rgba(231,76,60,.2)':'rgba(46,204,113,.2)';
+  }
+  const box = document.getElementById('slaMessages');
+  box.innerHTML = '';
+  l.messages.forEach(m=>{
+    const d=document.createElement('div');
+    d.className='message ' + (m.type==='customer'?'message-user':m.type==='system'?'message-system':'message-bot');
+    d.innerHTML=`<div>${m.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${m.time}</div>`;
+    box.appendChild(d);
+  });
+  box.scrollTop=box.scrollHeight;
+  document.getElementById('slaInputArea').style.display='flex';
+}
+
+function loadActiveConversation(conv){
+  document.getElementById('slaCurrentChat').textContent = `Lead ${conv.leadNumber} - ${conv.agentName}`;
+  document.getElementById('slaCurrentDetails').textContent = `${conv.area} • ALPS: ${conv.score} • ${getStatusText(conv.status)}`;
+
+  const info = getConversationTimer(conv);
+  const tEl = document.getElementById('slaCurrentTimer');
+  tEl.textContent = info.text;
+  tEl.style.background = info.class==='timer-positive'?'rgba(231,76,60,.2)':'rgba(46,204,113,.2)';
+
+  const box = document.getElementById('slaMessages');
+  box.innerHTML = '';
+  conv.messages.forEach(m=>{
+    const div=document.createElement('div');
+    const cls = m.type==='customer' ? 'message-user' : (m.type==='system'?'message-system':'message-bot');
+    div.className='message '+cls;
+    div.innerHTML=`<div>${m.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${m.time}</div>`;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+  document.getElementById('slaInputArea').style.display='flex';
+}
+
+function handleSLAMessage(e){ if(e.key==='Enter') sendSLAMessage(); }
+function sendSLAMessage(){
+  const input = document.getElementById('slaMessageInput');
+  const text = input.value.trim(); if(!text) return; input.value='';
+  const box = document.getElementById('slaMessages');
+  const d=document.createElement('div');
+  d.className='message message-bot';
+  d.innerHTML=`<div>${text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${new Date().toLocaleTimeString()}</div>`;
+  box.appendChild(d); box.scrollTop=box.scrollHeight;
+
+  const conv = activeConversations[selectedConversation];
+  if(conv){
+    conv.messages.push({type:'agent',text,time:new Date().toLocaleTimeString()});
+    if(conv.status==='waiting_agent_response'){
+      conv.status='ongoing';
+      conv.slaTimer={type:'ongoing',timeRemaining:600,alertTriggered:false,overdue:0};
+    }else{
+      conv.slaTimer.timeRemaining=600; conv.slaTimer.alertTriggered=false; conv.slaTimer.overdue=0;
+    }
+    setTimeout(()=>{
+      const replies=["Thanks! That helps.","Great, what are next steps?","I'm interested to view.","Sounds good!","👍"];
+      const r=replies[Math.floor(Math.random()*replies.length)];
+      const u=document.createElement('div');
+      u.className='message message-user';
+      u.innerHTML=`<div>${r}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${new Date().toLocaleTimeString()}</div>`;
+      box.appendChild(u); box.scrollTop=box.scrollHeight;
+      conv.messages.push({type:'customer',text:r,time:new Date().toLocaleTimeString()});
+      conv.slaTimer.timeRemaining=600;
+    },1500);
+  }
+}
+
+function escalateConversation(){
+  if(!selectedConversation) return;
+  const box=document.getElementById('slaMessages');
+  const div=document.createElement('div');
+  div.className='message message-system';
+  div.innerHTML=`<div><strong>Conversation Escalated</strong></div><div>Supervisor will take over.</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${new Date().toLocaleTimeString()}</div>`;
+  box.appendChild(div); box.scrollTop=box.scrollHeight;
+  alert('Escalated. Supervisor will take over soon.');
+}
+
+function getConversationClass(conv){
+  if(!conv.slaTimer) return 'conversation-item';
+  if(conv.slaTimer.type==='initial' && conv.slaTimer.timeRemaining<=60) return 'sla-warning';
+  if(conv.slaTimer.overdue>0) return 'sla-breach';
+  return '';
+}
+function getConversationStatus(conv){
+  if(!conv.slaTimer) return {status:'✅ Active',color:'#2ecc71'};
+  if(conv.status==='waiting_agent_response') return {status:'⏳ Waiting',color:'#f39c12'};
+  if(conv.slaTimer.overdue>0) return {status:'🚨 Breach',color:'#e74c3c'};
+  if(conv.slaTimer.alertTriggered) return {status:'⚠️ Alert',color:'#f39c12'};
+  return {status:'✅ Active',color:'#2ecc71'};
+}
+function getConversationTimer(conv){
+  if(!conv.slaTimer) return {text:'--:--',class:'timer-negative',description:'No timer'};
+  const t=conv.slaTimer;
+  if(t.overdue>0){
+    const m=Math.floor(t.overdue/60), s=(t.overdue%60).toString().padStart(2,'0');
+    return {text:`+${m}:${s}`,class:'timer-positive',description:t.type==='initial'?'Initial response overdue':'Response overdue'};
+  }
+  if(t.timeRemaining>0){
+    const m=Math.floor(t.timeRemaining/60), s=(t.timeRemaining%60).toString().padStart(2,'0');
+    return {text:`-${m}:${s}`,class:'timer-negative',description:t.type==='initial'?'Initial response due':'Next response due'};
+  }
+  return {text:'0:00',class:'timer-negative',description:'Timer expired'};
+}
+function getStatusText(s){
+  return s==='waiting_agent_response'?'Waiting for agent response':
+         s==='ongoing'?'Ongoing conversation':
+         s==='assigned'?'Assigned to agent':
+         s==='in_queue'?'In queue':
+         s==='unassigned'?'Unassigned':'Active';
+}
+
+/* ======= REASSIGNMENT ======= */
+function reassignToNextAgent(conv){
+  const next = findNextAgent(conv.agentId);
+  // remove from current agent's list
+  const arr = agentConversations[conv.agentId];
+  const ix = arr.findIndex(c=>c.id===conv.id);
+  if(ix>-1) arr.splice(ix,1);
+
+  if(next){
+    conv.agentId = next.id;
+    conv.agentName = next.name;
+    conv.assignedTime = new Date();
+    conv.status = 'waiting_agent_response';
+    conv.slaTimer = {type:'initial',timeRemaining:300,alertTriggered:false,overdue:0};
+    agentConversations[next.id].push(conv);
+    conv.messages.push({type:'system',text:`Conversation reassigned to ${next.name} due to initial response timeout.`,time:new Date().toLocaleTimeString()});
+
+    // if this conv is open, refresh header immediately
+    if(selectedConversation===conv.id) loadActiveConversation(conv);
+
+    refreshCurrentListView();
+    showNotification(`Lead ${conv.leadNumber} reassigned to ${next.name}`,'warning');
+  }else{
+    conv.status='unassigned';
+    conv.slaTimer.overdue++;
+    showNotification(`No agent available for Lead ${conv.leadNumber}`,'error');
+  }
+}
+
+function findNextAgent(currentId){
+  const idx = agentOrder.indexOf(currentId);
+  const rotated = [...agentOrder.slice(idx+1), ...agentOrder.slice(0,idx)];
+  for(const id of rotated){
+    // consider available or busy but not full (<=9 chats)
+    if(AGENTS[id].status!=='away' && agentConversations[id].length<10){
+      return {id, name:AGENTS[id].name.replace('👑 ','')};
     }
   }
   return null;
 }
 
-/* ===========================================================
-   AI CHAT (lead intake)
-=========================================================== */
-const AREAS = ["KL/Selangor","Perak","JB/Penang","Negeri Sembilan","Genting Highlands"];
-const PROPERTIES = ["121 Residence","7 Tree Seven","Acacia Residence","Ara Damansara","Ampang","Arte Cheras","Astoria","Austin Regency","Bandar Sri Permaisuri","Bora Residence","Bukit Jalil","Cheras","Duta Park","Emporis Kota Damansara","Epic Residence","HighPark Suites","Icon City","Kelana Jaya","Kota Damansara","M Vertica","Majestic Maxim","Meta City","Mont Kiara","One Cochrane","Parc3","Petaling Jaya","Pinnacle","Razak City Residences","Rica Residence","Sentul","Setapak","Subang Jaya","Sunway Avila","Sunway Serene","Trion KL","Vista Sentul","Vivo Residence"];
+function refreshCurrentListView(){
+  // keep agents grid in sync, too
+  syncAgentCapacitiesToConversations();
 
-const QUESTIONS = [
-  {id:'area', text:"Choose an area:", type:'select', options:AREAS, weight:15},
-  {id:'property', text:"Great choice! Select a property:", type:'property', weight:10},
-  {id:'budget', text:"What's your budget (RM)?", type:'input', placeholder:'e.g. 800', weight:25},
-  {id:'pax', text:"How many people will be staying?", type:'select', options:['1 person','2 people','More than 2'], weight:10},
-  {id:'car', text:"Do you have a car?", type:'select', options:['Yes','No'], weight:5},
-  {id:'parking', text:"Do you need a car park lot?", type:'select', options:['Yes','No'], weight:5},
-  {id:'movein', text:"When are you planning to move in?", type:'date', weight:20},
-  {id:'tenancy', text:"What's your preferred tenancy period?", type:'select', options:['6 months','12 months'], weight:5},
-  {id:'gender', text:"What's your gender?", type:'select', options:['Male','Female'], weight:0},
-  {id:'unit_spec', text:"What type of unit do you prefer? (You can select multiple)", type:'multi', options:['Female unit','Male unit','Mixed Gender unit'], weight:5},
-  {id:'workplace', text:"Where is your workplace? (to recommend closest property)", type:'input', placeholder:'e.g., KLCC, Cyberjaya', weight:10},
-  {id:'nationality', text:"What's your nationality?", type:'select', options:['Malaysian','Others'], weight:0},
-];
-
-let aiStep=0, aiAns={}, aiScore=0;
-
-function bootChat(){
-  aiStep=0; aiAns={}; aiScore=0;
-  $('#chatFlow').innerHTML='';
-  updateAiScore();
-  ask(0);
+  if(currentListView.type==='all') showAllConversations();
+  if(currentListView.type==='agent') showAgentConversationsList(currentListView.id);
 }
-function ask(i){
-  if(i>=QUESTIONS.length){ finalizeLeadFromAI(); return; }
-  aiStep=i;
-  const q=QUESTIONS[i];
-  addBot(q.text + (q.type==='input' ? `<div class="meta">Press Enter to submit</div>` : ''));
-  if(q.type==='select'){
-    const box=document.createElement('div'); box.className='options';
-    q.options.forEach(o=>{
-      const b=document.createElement('div'); b.className='btn-opt'; b.textContent=o;
-      b.onclick=()=>choose(q.id,o,q.weight);
-      box.appendChild(b);
+
+/* ======= ALERT ======= */
+let alertInterval = null;
+function showSlaAlert(convId){
+  lastAlertConvId = convId;
+  const c = activeConversations[convId];
+  document.getElementById('alertConversation').textContent = `Lead ${c.leadNumber}`;
+  document.getElementById('alertAgent').textContent = c.agentName;
+  let secs = 1;
+  const timeEl = document.getElementById('alertTime');
+  clearInterval(alertInterval);
+  alertInterval = setInterval(()=>{ secs++; const m=Math.floor(secs/60), s=(secs%60).toString().padStart(2,'0'); timeEl.textContent = `+${m}:${s}`;},1000);
+  document.getElementById('slaAlert').style.display='block';
+}
+function goToConversation(){
+  document.getElementById('slaAlert').style.display='none';
+  if(lastAlertConvId){
+    switchPage('sla');
+    setTimeout(()=>openSLAChat(lastAlertConvId),200);
+  }
+}
+function reassignConversation(){
+  document.getElementById('slaAlert').style.display='none';
+  if(lastAlertConvId && activeConversations[lastAlertConvId]){
+    reassignToNextAgent(activeConversations[lastAlertConvId]);
+  }
+}
+
+/* ======= LEADS (UI helpers) ======= */
+function addToOngoingLeads(lead){
+  const cont = document.getElementById('ongoingLeads');
+  const cls = lead.score>=70?'hot':lead.score>=40?'warm':'cold';
+  const scoreCls = lead.score>=70?'score-hot':lead.score>=40?'score-warm':'score-cold';
+  const agentText = lead.agent ? lead.agent : (lead.status==='in_queue'?'In Queue':'AI Bot');
+  const statusText = lead.status==='assigned'?'Assigned':(lead.status==='in_queue'?'Queued':'AI Handling');
+  const el = document.createElement('div');
+  el.className = `lead-item ${cls}`;
+  el.setAttribute('data-lead',lead.id);
+  el.onclick = ()=>showLeadChart(lead.id);
+  el.innerHTML = `
+    <div class="lead-score ${scoreCls}">${lead.score}</div>
+    <div class="lead-info">
+      <div class="lead-name">${lead.score>=70?'🔥':''} Lead ${lead.leadNumber}</div>
+      <div class="lead-details">Area: ${lead.area} • Budget: RM${lead.budget}<br/>Move-in: ${lead.movein} • Agent: ${agentText}</div>
+      <div class="lead-timestamp">Started: ${new Date(lead.timestamp).toLocaleTimeString()} • Status: ${statusText}</div>
+    </div>`;
+  cont.prepend(el);
+  completedLeads.push(lead);
+}
+
+function addToSLAMonitoring(conversation){
+  // show in current view (All and possibly agent view)
+  activeConversations[conversation.id] = conversation;
+  agentConversations[conversation.agentId].push(conversation);
+  refreshCurrentListView();
+}
+
+/* ======= CHART MODAL ======= */
+function showLeadChart(leadId){
+  const data = buildLeadChartData(leadId);
+  document.getElementById('chartTitle').textContent = `${data.name} - Score Progression`;
+  document.getElementById('chartModal').style.display='block';
+  setTimeout(()=>{ createLeadChart(data); updateChartDetails(data); },50);
+}
+function buildLeadChartData(leadId){
+  const c = completedLeads.find(l=>l.id===leadId);
+  if(c){
+    const scores=[0]; let cur=0;
+    questions.forEach(q=>{
+      const r = c.responses[q.id]; if(!r) return;
+      let inc=0;
+      if(q.id==='area'||q.id==='property') inc=q.weight;
+      else if(q.id==='budget'){ const b=parseInt(r); inc=b>=800?q.weight:b>=600?q.weight*.7:b>=400?q.weight*.4:q.weight*.1; }
+      else if(q.id==='movein'){ const d=new Date(r), t=new Date(), diff=Math.ceil((d-t)/(1000*60*60*24)); inc=diff<=7?q.weight:diff<=30?q.weight*.8:diff<=60?q.weight*.6:q.weight*.3; }
+      else if(q.id==='nationality'){ inc = r==='Malaysian'?q.weight*0.8:q.weight; }
+      else inc=q.weight*.8;
+      cur=Math.min(100,cur+inc); scores.push(Math.round(cur));
     });
-    $('#chatFlow').appendChild(box); scrollBottom();
-  }else if(q.type==='property'){
-    const box=document.createElement('div'); box.className='grid-choices';
-    PROPERTIES.slice(0,12).forEach(p=>{
-      const c=document.createElement('div'); c.className='choice'; c.textContent=p;
-      c.onclick=()=>choose(q.id,p,q.weight);
-      box.appendChild(c);
-    });
-    $('#chatFlow').appendChild(box); scrollBottom();
-  }else if(q.type==='input'){
-    const ip=document.createElement('input');
-    ip.className='btn-opt'; ip.style.textAlign='left'; ip.placeholder=q.placeholder||'';
-    ip.onkeypress=(e)=>{ if(e.key==='Enter' && ip.value.trim()) choose(q.id,ip.value.trim(),q.weight); };
-    $('#chatFlow').appendChild(ip); ip.focus(); scrollBottom();
-  }else if(q.type==='date'){
-    const ip=document.createElement('input'); ip.type='date'; ip.className='btn-opt'; ip.onchange=()=>choose(q.id,ip.value,q.weight);
-    $('#chatFlow').appendChild(ip); scrollBottom();
-  }else if(q.type==='multi'){
-    const box=document.createElement('div'); box.className='checkbox-group'; box.id='group_'+q.id;
-    q.options.forEach((o,idx)=>{
-      const w=document.createElement('label'); w.className='checkbox-chip'; w.dataset.key=`${q.id}_${idx}`;
-      w.innerHTML=`<input type="checkbox" value="${o}"><span>${o}</span>`;
-      w.onclick=(e)=>{ if(e.target.tagName!=='INPUT'){const cb=w.querySelector('input'); cb.checked=!cb.checked;} w.classList.toggle('selected', w.querySelector('input').checked); };
-      box.appendChild(w);
-    });
-    const go=document.createElement('button'); go.className='btn-continue'; go.textContent='Continue';
-    go.onclick=()=>{
-      const vals=[...box.querySelectorAll('input:checked')].map(i=>i.value);
-      if(!vals.length) return alert('Please select at least one option');
-      choose(q.id, vals, q.weight);
-    };
-    const wrap=document.createElement('div'); wrap.style.marginTop='10px'; wrap.appendChild(go);
-    $('#chatFlow').appendChild(box); $('#chatFlow').appendChild(wrap); scrollBottom();
+    return {name:`Lead ${c.leadNumber}`,scores, messages:['Start','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Unit','Workplace','Nationality','Final'], details:`${c.area} • Budget: RM${c.budget} • Move-in: ${c.movein} • Status: ${c.status}`};
   }
+  return {name:'Lead #2024001',scores:[0,15,25,40,55,67,72,78,82,87],messages:['Start','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Unit','Workplace','Nationality','Final'],details:'Sample'};
 }
-
-function choose(id,value,weight){
-  addUser(Array.isArray(value)? value.join(', ') : value);
-  aiAns[id]=value;
-
-  // follow-up for "Others" nationality → free text
-  if(id==='nationality' && value==='Others'){
-    addBot('Please specify your nationality:');
-    const ip=document.createElement('input'); ip.className='btn-opt';
-    ip.onkeypress=(e)=>{ if(e.key==='Enter' && ip.value.trim()){ aiAns['nationality_other']=ip.value.trim(); scoreFromAnswer('nationality_other', ip.value.trim(), 6); ask(aiStep+1);} };
-    $('#chatFlow').appendChild(ip); ip.focus(); scrollBottom();
-    return;
-  }
-
-  scoreFromAnswer(id,value,weight);
-  ask(aiStep+1);
+function createLeadChart(d){
+  const ctx = document.getElementById('leadChart').getContext('2d');
+  if(leadChart) leadChart.destroy();
+  leadChart = new Chart(ctx,{
+    type:'line',
+    data:{labels:d.messages,datasets:[{label:'ALPS Score',data:d.scores,borderColor:'#3498db',backgroundColor:'rgba(52,152,219,.1)',borderWidth:3,fill:true,tension:.4,pointBackgroundColor:'#3498db',pointBorderColor:'#fff',pointBorderWidth:2,pointRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100}}}
+  });
 }
-
-function scoreFromAnswer(id,val,weight){
-  let inc=0;
-  if(id==='area'||id==='property'){inc=weight;}
-  else if(id==='budget'){ const b=parseInt(val); if(!isNaN(b)) inc=b>=800?weight:b>=600?weight*.7:b>=400?weight*.4:weight*.1; }
-  else if(id==='movein'){ const d=new Date(val), t=new Date(), diff=Math.ceil((d-t)/86400000); if(!isNaN(diff)) inc=diff<=7?weight:diff<=30?weight*.8:diff<=60?weight*.6:weight*.3; }
-  else if(id==='nationality_other'){ inc=val.toLowerCase().includes('student')?weight*.6:weight*.4; }
-  else inc=weight*.8;
-  aiScore = Math.max(0, Math.min(100, aiScore + inc));
-  updateAiScore();
-}
-
-function addBot(html){ const d=document.createElement('div'); d.className='message message-bot'; d.innerHTML=html; $('#chatFlow').appendChild(d); scrollBottom(); }
-function addUser(html){ const d=document.createElement('div'); d.className='message message-user'; d.innerHTML=html; $('#chatFlow').appendChild(d); scrollBottom(); }
-function scrollBottom(){ const f=$('#chatFlow'); f.scrollTop = f.scrollHeight; }
-
-function updateAiScore(){
-  const bar=$('#aiScoreFill'); const txt=$('#aiScoreText'); const tag=$('#aiScoreTag');
-  const pct=Math.round(aiScore);
-  bar.style.width=pct+'%';
-  bar.className='score-fill '+(pct>=70?'score-hot':pct>=40?'score-warm':'score-cold');
-  txt.textContent=`${pct} / 100`;
-  tag.textContent = pct>=70?'Hot Lead 🔥':pct>=40?'Warm Lead ⭐':'Cold Lead ❄️';
-}
-
-function finalizeLeadFromAI(){
-  const best = nextAgentForAssignment();
-  const leadNo = '#'+(200000 + Object.keys(convMap).length + 6);
-  const newConv = {
-    id:'conv_'+Date.now(),
-    leadNo,
-    createdAt:Date.now(),
-    area: aiAns.area || 'KL/Selangor',
-    budget: aiAns.budget || 'N/A',
-    score: Math.round(aiScore),
-    scoreHistory:[0, Math.round(aiScore)],
-    messages: [{type:'system',text:`Lead ${leadNo} created from AI chat.`,time:nowTime()}],
-    status:'waiting',
-    timer:{type:'initial',left:300,over:0},
-    aiHandling:false
-  };
-
-  if(best){
-    newConv.agentId = best.id; newConv.agentName = best.name;
-    newConv.messages.push({type:'system',text:`Lead ${leadNo} has been assigned to you. Area: ${newConv.area}, Budget: ${newConv.budget}, Move-in: ${aiAns.movein||'—'}`,time:nowTime()});
-    agentConvs[best.id].push(newConv);
-  }else{
-    newConv.aiHandling=true; newConv.status='ai_handling'; newConv.agentId=null; newConv.agentName=null;
-    newConv.messages.push({type:'system',text:`All agents busy. AI assistant is handling this lead for now.`,time:nowTime()});
-  }
-  convMap[newConv.id]=newConv;
-
-  if(best){
-    addBot(`
-      <div style="background:#e3f2fd;border-left:4px solid #2196f3;border-radius:12px;padding:12px">
-        <h3 style="margin-bottom:6px">Lead routed!</h3>
-        <div><strong>Assigned to:</strong> ${best.name}</div>
-        <div><strong>Lead ID:</strong> ${leadNo}</div>
-        <div>Our agent will contact you shortly.</div>
+function updateChartDetails(d){
+  const final = d.scores[d.scores.length-1];
+  let cat='Cold Lead', color='#95a5a6';
+  if(final>=70){cat='Hot Lead';color='#e74c3c';} else if(final>=40){cat='Warm Lead';color='#f39c12';}
+  document.getElementById('chartDetails').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
+      <div style="background:#f8f9fa;padding:12px;border-radius:10px">
+        <h4>Final Score</h4><div style="font-size:22px;font-weight:800;color:${color}">${final}/100</div><div style="color:${color};font-weight:700">${cat}</div>
       </div>
-    `);
-  }else{
-    addBot(`
-      <div style="background:#fff3e0;border-left:4px solid #fb8c00;border-radius:12px;padding:12px">
-        <h3 style="margin-bottom:6px">Added to priority queue</h3>
-        <div>We're currently busy. AI will assist you while we free an agent.</div>
+      <div style="background:#f8f9fa;padding:12px;border-radius:10px">
+        <h4>Score Range</h4>
+        <div>Min: ${Math.min(...d.scores)}</div><div>Max: ${Math.max(...d.scores)}</div><div>Growth: +${final-d.scores[0]}</div>
       </div>
-    `);
-  }
-
-  renderAgents(); refreshLeads();
-  if(currentPage==='sla') renderConvList();
-}
-
-/* ===========================================================
-   SLA LIST + CHAT
-=========================================================== */
-function renderOneConvList(div, c){
-  let cls='', timerText='', pill='t-neg', desc='Next response due';
-  if(c.timer.over>0){ cls='breach'; timerText='+'+mmss(c.timer.over); pill='t-pos'; desc='SLA breached'; }
-  else { timerText='-'+mmss(c.timer.left); cls = c.timer.left<=60?'warning':''; if(c.timer.type==='initial') desc='Initial response due'; }
-  if(c.aiHandling){ cls=''; pill='t-neg'; desc='AI handling'; }
-
-  div.className='conv '+cls;
-  div.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
-        <div style="font-weight:800">Lead ${c.leadNo} • ${c.agentName || 'AI Bot'}</div>
-        <div class="meta">${c.area} • ALPS: ${c.score}${c.aiHandling?' • AI handling':''}</div>
+      <div style="background:#f8f9fa;padding:12px;border-radius:10px">
+        <h4>Details</h4><div style="font-size:14px">${d.details}</div>
       </div>
-      <div class="meta">${c.status==='ongoing'?'Active':''}</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
-      <span class="timer-pill ${pill}">${timerText}</span>
-      <span class="meta">${desc}</span>
     </div>`;
 }
+function closeModal(){ document.getElementById('chartModal').style.display='none'; if(leadChart){leadChart.destroy();leadChart=null;} }
 
-function renderConvList(){
-  const list = $('#convList'); list.innerHTML='';
-  $('#convListTitle').textContent = currentAgentFilter ? `💬 ${AGENTS.find(a=>a.id===currentAgentFilter).name}'s Conversations` : '💬 Active Conversations';
-  $('#convSubTitle').textContent = currentAgentFilter ? `Active: ${agentConvs[currentAgentFilter].length} conversations` : 'Click a conversation to manage';
-
-  const sourceConvs = currentAgentFilter ? agentConvs[currentAgentFilter] : Object.values(convMap);
-  if(!sourceConvs.length){
-    list.innerHTML = `<div class="meta" style="padding:16px">No active conversations</div>`;
+/* ======= CHAT / ALPS ======= */
+function initializeChat(){
+  chatCurrentStep=0; chatUserResponses={}; chatAlpsScore=0;
+  const box=document.getElementById('chatMessages');
+  box.innerHTML = `<div class="typing-indicator" id="typingIndicator"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  updateChatScoreDisplay();
+  setTimeout(()=>askQuestion(0),400);
+}
+function askQuestion(i){
+  if(i>=questions.length){ return finalizeLead(); }
+  const q=questions[i]; chatCurrentStep=i; showTyping();
+  setTimeout(()=>{
+    hideTyping();
+    let html=`<div>${q.text}</div>`;
+    if(q.type==='select'){
+      html+=`<div class="options-container">`+
+        q.options.map(o=>`<div class="option-button" onclick="selectOption('${q.id}','${o.replace(/'/g,"\\'")}')">${o}</div>`).join('')+
+        `</div>`;
+    }else if(q.type==='property_select'){
+      const props=getPropertiesForArea(chatUserResponses.area||'KL/Selangor').slice(0,12);
+      html+=`<div class="property-grid">`+props.map(p=>`<div class="property-item" onclick="selectOption('${q.id}','${p.replace(/'/g,"\\'")}')">${p}</div>`).join('')+`</div>`;
+    }else if(q.type==='input'){
+      html+=`<input class="input-field" type="text" placeholder="${q.placeholder}" onkeypress="handleInputKeypress(event,'${q.id}')">`;
+    }else if(q.type==='date'){
+      html+=`<input class="input-field" type="date" onchange="handleDateChange(event,'${q.id}')">`;
+    }else if(q.type==='multiple'){
+      html+=createMultipleChoiceOptions(q.id,q.options);
+    }
+    addMessage(html,'bot');
+  },600);
+}
+function createMultipleChoiceOptions(id,opts){
+  let c=`<div class="checkbox-group" id="checkboxGroup_${id}">`;
+  opts.forEach((o,idx)=>{
+    const oid=`${id}_${idx}`;
+    c+=`<div class="checkbox-item" data-option-id="${oid}" onclick="toggleMultipleChoice('${oid}','${id}')"><input type="checkbox" id="${oid}" value="${o}"><label for="${oid}">${o}</label></div>`;
+  });
+  c+=`<button class="continue-btn" onclick="submitMultipleChoice('${id}')">Continue</button></div>`;
+  return c;
+}
+function toggleMultipleChoice(oid,id){ const cb=document.getElementById(oid); const item=document.querySelector(`[data-option-id="${oid}"]`); cb.checked=!cb.checked; item.classList.toggle('selected',cb.checked); }
+function submitMultipleChoice(id){
+  const vals=[...document.querySelectorAll(`#checkboxGroup_${id} input[type="checkbox"]:checked`)].map(cb=>cb.value);
+  if(!vals.length) return alert('Please select at least one option');
+  chatUserResponses[id]=vals; addMessage(vals.join(', '),'user');
+  recalcScoreAndAdvance(id, vals);
+}
+function selectOption(id,val){
+  // Nationality "Others" triggers a free-text follow-up, don't advance yet
+  if(id==='nationality' && val==='Others'){
+    chatUserResponses[id] = val;
+    addMessage(val,'user');
+    addMessage(`<div>Please specify your nationality:</div><input class="input-field" type="text" placeholder="e.g., Filipino, Iranian" onkeypress="handleInputKeypress(event,'nationality_other')">`,'bot');
     return;
   }
+  chatUserResponses[id]=val; addMessage(val,'user');
+  recalcScoreAndAdvance(id, val);
+}
+function handleInputKeypress(e,id){ if(e.key==='Enter'){ const v=e.target.value.trim(); if(!v) return; if(id==='nationality_other'){ chatUserResponses['nationality_detail']=v; addMessage(v,'user'); recalcScoreAndAdvance('nationality_detail',v); } else { selectOption(id,v); } } }
+function handleDateChange(e,id){ const v=e.target.value; if(v) selectOption(id,v); }
 
-  sourceConvs.forEach((c,i)=>{
-    const el=document.createElement('div'); el.onclick=()=>openConv(c.id);
-    renderOneConvList(el,c);
-    list.appendChild(el);
-    if(i===0 && !selectedConvId) openConv(c.id);
+function recalcScoreAndAdvance(lastId, val){
+  recomputeScoreFromFeatures({...chatUserResponses}).then(score=>{
+    chatAlpsScore = Math.max(0, Math.min(100, score));
+    updateChatScoreDisplay();
+    setTimeout(()=>askQuestion(chatCurrentStep+1),400);
   });
 }
 
-function openAgentInSla(agentId){
-  currentAgentFilter = agentId;
-  selectedConvId = null;
-  renderConvList();
+function updateChatScoreDisplay(){
+  const bar=document.getElementById('chatScoreBar');
+  const text=document.getElementById('chatScoreText');
+  const cat=document.getElementById('chatScoreCategory');
+  const pct=Math.min(chatAlpsScore,100);
+  bar.style.width=pct+'%';
+  bar.className='score-fill '+(chatAlpsScore>=70?'score-hot':chatAlpsScore>=40?'score-warm':'score-cold');
+  text.textContent=`${Math.round(chatAlpsScore)} / 100`;
+  cat.textContent = chatAlpsScore>=70?'Hot Lead 🔥':chatAlpsScore>=40?'Warm Lead ⭐':'Cold Lead ❄️';
+}
+function getPropertiesForArea(area){ return PROPERTIES; }
+
+function recomputeScoreFromFeatures(features){
+  if(MODEL_SOURCE==='server'){
+    return fetch(SCORE_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(features)})
+      .then(r=>r.json()).then(d=>Number(d.score)||0).catch(()=>heuristicScore(features));
+  }
+  return Promise.resolve(heuristicScore(features));
+}
+function heuristicScore(f){
+  let score = 0;
+  if(f.area) score += 15;
+  if(f.property) score += 10;
+  if(f.budget){ const b=parseInt(f.budget)||0; score += b>=800?25:b>=600?18:b>=400?10:3; }
+  if(f.pax) score += 8;
+  if(f.car) score += 4;
+  if(f.parking) score += 4;
+  if(f.movein){ const d=new Date(f.movein), t=new Date(), diff=Math.ceil((d-t)/(1000*60*60*24)); score += diff<=7?20:diff<=30?16:diff<=60?12:6; }
+  if(f.tenancy) score += 4;
+  if(f.unit_spec) score += 4;
+  if(f.workplace) score += 8;
+  if(f.gender) score += 0;
+  if(f.nationality==='Malaysian') score += 6;
+  if(f.nationality==='Others'){ score += 4; if(f.nationality_detail) score += 2; }
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-function openConv(id){
-  selectedConvId=id;
-  const c = convMap[id];
-  if(!c) return;
-
-  $('#slaHdrTitle').textContent = `Lead ${c.leadNo} - ${c.agentName || 'AI Bot'}`;
-  $('#slaHdrMeta').textContent = `${c.area} • ALPS: ${c.score} • ${c.aiHandling?'AI handling': (c.status==='ongoing'?'Ongoing conversation':'Waiting for agent response')}`;
-
-  const t = c.timer;
-  $('#slaHdrTimer').textContent = (t.over>0?'+':'-') + mmss(t.over>0?t.over:t.left);
-
-  const feed = $('#slaFeed'); feed.innerHTML='';
-  c.messages.forEach(m=>{
-    const div=document.createElement('div');
-    let cls='message-bot';
-    if(m.type==='customer') cls='message-user';
-    if(m.type==='system') cls='message-system';
-    div.className='message '+cls;
-    div.innerHTML = `<div>${m.text}</div><div class="meta" style="margin-top:4px">${m.time}</div>`;
-    feed.appendChild(div);
-  });
-  feed.scrollTop = feed.scrollHeight;
-}
-
-function sendSlaMsg(){
-  const ip=$('#slaInput'); const text=ip.value.trim(); if(!text || !selectedConvId) return;
-  ip.value='';
-  const c=convMap[selectedConvId];
-  c.messages.push({type:c.aiHandling?'bot':'agent',text, time:nowTime()});
-  if(c.status==='waiting') c.status='ongoing';
-  c.timer.type='ongoing'; c.timer.left=600; c.timer.over=0;
-  updateConvScore(c, +2);
-  openConv(c.id);
-
+function finalizeLead(){
+  showTyping();
   setTimeout(()=>{
-    const replies=["Sounds good!","Thanks! That helps.","👍","Can view today?","Ok noted."];
-    const r = replies[Math.floor(Math.random()*replies.length)];
-    c.messages.push({type:'customer', text:r, time:nowTime()});
-    const drift = Math.random()<.35 ? -6 : +1;
-    updateConvScore(c, drift);
-    openConv(c.id);
-  }, 1500);
-}
+    hideTyping();
+    const newLead = {
+      id:`lead${nextLeadId}`,
+      leadNumber:`#${nextLeadId}`,
+      score:Math.round(chatAlpsScore),
+      area:chatUserResponses.area||'KL/Selangor',
+      budget:chatUserResponses.budget||'Not specified',
+      movein:chatUserResponses.movein||'Not specified',
+      property:chatUserResponses.property||'Not specified',
+      responses:{...chatUserResponses},
+      timestamp:new Date(),
+      status:'pending_assignment'
+    };
 
-function escalate(){
-  if(!selectedConvId) return;
-  const c=convMap[selectedConvId];
-  c.messages.push({type:'system',text:'Conversation escalated. Supervisor will take over.',time:nowTime()});
-  updateConvScore(c, +0); openConv(c.id);
-}
-
-function updateConvScore(c, delta){
-  c.score = Math.max(0, Math.min(100, c.score + delta));
-  c.scoreHistory.push(c.score);
-  if(!c.aiHandling && c.score<=25){
-    c.aiHandling = true;
-    c.messages.push({type:'system',text:'Lead became low quality. AI assistant has joined and the agent capacity is freed.',time:nowTime()});
-    if(c.agentId){
-      agentConvs[c.agentId] = agentConvs[c.agentId].filter(x=>x.id!==c.id);
-      c.agentId = null; c.agentName=null; c.status='ai_handling';
+    if(chatAlpsScore>=60){
+      addMessage(`<div style="background:#e8f5e8;padding:12px;border-radius:12px;border-left:4px solid #2ecc71"><h3>High Priority Lead Detected!</h3><p><strong>Your ALPS Score: ${Math.round(chatAlpsScore)}/100</strong></p><p>This lead will be routed to our top sales agent for immediate attention.</p><p>Routing to agent now...</p></div>`,'bot');
+      setTimeout(()=>routeLeadToAgent(newLead),900);
+    }else{
+      addMessage(`<div style="background:#fff8e1;padding:12px;border-radius:12px;border-left:4px solid #f39c12"><h3>Lead Information Collected</h3><p><strong>ALPS Score: ${Math.round(chatAlpsScore)}/100</strong></p><p>Our AI will continue to assist you.</p></div>`,'bot');
+      addToOngoingLeads(newLead);
     }
-    c.timer={type:'ai',left:0,over:0};
-    renderAgents();
-  }
-  if(currentPage==='sla'){
-    renderConvList();
-    if(selectedConvId===c.id) openConv(c.id);
-  }
-  refreshLeads();
+    nextLeadId++;
+  },400);
 }
 
-/* ===========================================================
-   TIMERS TICK (1s)
-=========================================================== */
-setInterval(()=>{
-  $('#lastUpdate').textContent = nowTime();
-  Object.values(convMap).forEach(c=>{
-    const t=c.timer;
-    if(t.type==='ai') return;
-    if(t.over>0){ t.over++; }
-    else if(t.left>0){ t.left--; if(t.left===0){ t.over=1; if(t.type==='initial'){
-      const next = nextAgentForAssignment();
-      if(next){
-        if(c.agentId){
-          agentConvs[c.agentId]=agentConvs[c.agentId].filter(x=>x.id!==c.id);
-        }
-        c.agentId=next.id; c.agentName=next.name;
-        agentConvs[next.id].push(c);
-        c.messages.push({type:'system',text:`Conversation reassigned to ${next.name} due to initial response timeout.`,time:nowTime()});
-        c.status='waiting';
-        c.timer={type:'initial',left:300,over=0};
-        renderAgents();
-        if(currentPage==='sla'){
-          renderConvList();
-          if(selectedConvId===c.id) openConv(c.id);
-        }
-      } else {
-        c.aiHandling=true; c.agentId=null; c.agentName=null; c.status='ai_handling'; c.timer={type:'ai',left:0,over:0};
-        c.messages.push({type:'system',text:`No agent available. AI assistant continues this conversation.`,time:nowTime()});
-        renderAgents(); if(currentPage==='sla') renderConvList();
-      }
-    }}}
+function routeLeadToAgent(lead){
+  // pick first available/top in queue with capacity <10
+  const best = agentOrder.find(id => AGENTS[id].status!=='away' && agentConversations[id].length<10);
+  if(best){
+    const bestName = AGENTS[best].name.replace('👑 ','');
+    lead.agent = bestName; lead.agentId = best; lead.status='assigned';
+
+    const convId = `conv_${lead.id}`;
+    const conv = {
+      id:convId, leadId:lead.id, leadNumber:lead.leadNumber,
+      agentId:best, agentName:bestName,
+      score:lead.score, area:lead.area, budget:lead.budget,
+      status:'waiting_agent_response', assignedTime:new Date(),
+      messages:[{type:'system',text:`Lead ${lead.leadNumber} has been assigned to you. Area: ${lead.area}, Budget: ${lead.budget}, Move-in: ${lead.movein}`,time:new Date().toLocaleTimeString()}],
+      slaTimer:{type:'initial',timeRemaining:300,alertTriggered:false,overdue:0}
+    };
+
+    addToOngoingLeads(lead);
+    addToSLAMonitoring(conv);
+
+    setTimeout(()=>addMessage(`<div style="background:#e3f2fd;padding:12px;border-radius:12px;border-left:4px solid #2196f3"><h3>Lead Successfully Routed!</h3><p><strong>Assigned to:</strong> ${bestName}</p><p><strong>Lead ID:</strong> ${lead.leadNumber}</p><p>Our agent will contact you shortly!</p></div>`,'bot'),500);
+  }else{
+    lead.status='in_queue'; addToOngoingLeads(lead);
+    addMessage(`<div style="background:#fff3e0;padding:12px;border-radius:12px;border-left:4px solid #ff9800"><h3>Added to Priority Queue</h3><p>All agents are currently busy. You've been added to our priority queue.</p><p>Estimated wait time: 3–5 minutes</p></div>`,'bot');
+  }
+}
+
+/* ======= UTIL ======= */
+function addMessage(html,who){ const box=document.getElementById('chatMessages'); const d=document.createElement('div'); d.className='message message-'+who; d.innerHTML=html; box.appendChild(d); box.scrollTop=box.scrollHeight; }
+function showTyping(){ const el=document.getElementById('typingIndicator'); if(el){el.style.display='block'; document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;} }
+function hideTyping(){ const el=document.getElementById('typingIndicator'); if(el) el.style.display='none'; }
+function showNotification(msg,type='info'){
+  const n = document.createElement('div');
+  n.style.cssText = "position:fixed;top:20px;right:20px;padding:14px 18px;border-radius:8px;color:#fff;font-weight:700;z-index:1200;max-width:320px;box-shadow:0 8px 18px rgba(0,0,0,.2)";
+  n.style.background = type==='success'?'#2ecc71':type==='warning'?'#f39c12':type==='error'?'#e74c3c':'#3498db';
+  n.textContent = msg; document.body.appendChild(n); setTimeout(()=>n.remove(),3000);
+}
+
+/* ======= QUEUE DRAG ======= */
+function initializeDragAndDrop(){
+  const list=document.getElementById('queueList');
+  let dragged=null;
+  list.addEventListener('dragstart',e=>{ if(e.target.classList.contains('queue-item')){ dragged=e.target; e.target.style.opacity='.5'; }});
+  list.addEventListener('dragend',e=>{ if(e.target.classList.contains('queue-item')) e.target.style.opacity=''; });
+  list.addEventListener('dragover',e=>e.preventDefault());
+  list.addEventListener('drop',e=>{
+    e.preventDefault();
+    const t=e.target.closest('.queue-item');
+    if(dragged && t && t!==dragged){
+      const rect=t.getBoundingClientRect(); const mid=rect.top+rect.height/2;
+      if(e.clientY<mid) list.insertBefore(dragged,t); else list.insertBefore(dragged,t.nextSibling);
+      updateQueuePositions();
+    }
+    dragged=null;
   });
+}
+function updateQueuePositions(){
+  const items=[...document.querySelectorAll('#queueList .queue-item')];
+  agentOrder.length=0;
+  items.forEach((it,i)=>{ it.querySelector('.position-text').textContent=`Position: ${i+1}`; it.dataset.position=i+1; agentOrder.push(it.dataset.agent); });
+  // re-render agents grid to reflect Top Sales marking
+  renderAgentsGrid(); syncAgentCapacitiesToConversations();
+}
 
-  if(currentPage==='sla'){ renderConvList(); }
-}, 1000);
+function promoteToTopSales(){ alert('Selected agent has been promoted to Top Sales position.'); }
+function removeFromQueue(){ alert('Selected agent has been removed from the queue.'); }
 
-/* ===========================================================
-   SLA: open from Agent cards
-=========================================================== */
-function openAgent(agentId){ $('.nav-item[data-page="sla"]').click(); setTimeout(()=>openAgentInSla(agentId),60); }
+/* ======= SEED DEMO RUNTIME CONVERSATIONS ======= */
+function seedDemoConversations(){
+  // Give Sarah one live chat, Mike two, Lisa one — purely for demonstration
+  const demo = [
+    {agent:'agent1', area:'Mont Kiara', score:87, leadNum:'#2024001'},
+    {agent:'agent2', area:'KL/Selangor', score:82, leadNum:'#2024002'},
+    {agent:'agent2', area:'KL/Selangor', score:78, leadNum:'#2024005'},
+    {agent:'agent3', area:'Negeri Sembilan', score:76, leadNum:'#2024006'}
+  ];
+  demo.forEach((d,i)=>{
+    const id = `conv_demo_${i}`;
+    const conv = {
+      id, leadId:id, leadNumber:d.leadNum,
+      agentId:d.agent, agentName:AGENTS[d.agent].name.replace('👑 ',''),
+      score:d.score, area:d.area, budget:800,
+      status:'waiting_agent_response',
+      assignedTime:new Date(),
+      messages:[{type:'system',text:`Lead ${d.leadNum} has been assigned to you. Area: ${d.area}, Budget: 800, Move-in: ${new Date().toISOString().slice(0,10)}`,time:new Date().toLocaleTimeString()}],
+      slaTimer:{type:'initial',timeRemaining:300,alertTriggered:false,overdue:0}
+    };
+    addToSLAMonitoring(conv);
+  });
+}
 
-/* ===========================================================
-   INITIAL RENDER + SEEDS
-=========================================================== */
-renderAgents(); refreshLeads();
+/* ======= CLICK OUTSIDE ======= */
+window.addEventListener('click',e=>{
+  const modal=document.getElementById('chartModal');
+  if(e.target===modal) closeModal();
+  const alertBox=document.getElementById('slaAlert');
+  if(e.target===alertBox) alertBox.style.display='none';
+});
 
+/* ======= AGENT PAGE SHORTCUT ======= */
+function goToAgentConversations(agentId){
+  switchPage('sla');
+  setTimeout(()=>showAgentConversationsList(agentId),150);
+}
 </script>
 </body>
 </html>
+
 
 
 
