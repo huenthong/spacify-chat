@@ -498,6 +498,12 @@ function handleChatInput(e){
     chatResponses[id]=val; chatAdd(val,'user'); scoreIncrement(id,val); ask(chatStep+1);
   }
 }
+function handleDateChange(e){
+  if(e.target.classList.contains('opt-input') && e.target.type==='date'){
+    const id = e.target.id.replace('inp_',''); const val = e.target.value;
+    if(!val) return; chatResponses[id]=val; chatAdd(val,'user'); scoreIncrement(id,val); ask(chatStep+1);
+  }
+}
 function handleContinue(e){
   if(e.target.classList.contains('continue')){
     const qid = e.target.dataset.q;
@@ -509,6 +515,7 @@ function handleContinue(e){
 $('#chat').addEventListener('click',handleChatClick);
 $('#chat').addEventListener('keypress',handleChatInput);
 $('#chat').addEventListener('click',handleContinue);
+$('#chat').addEventListener('change',handleDateChange);
 
 function scoreIncrement(qid,val){
   const q = questions.find(x=>x.id===qid); let inc=0;
@@ -534,7 +541,6 @@ function updateAlpsCard(){
 
 /* finalize: create a lead, route, start SLA */
 function finalizeLead(){
-  // message about score
   chatAdd(`<div style="background:#eef8ff;border-left:4px solid var(--primary);padding:12px;border-radius:10px"><strong>Score calculated:</strong> ${chatScore}/100</div>`, 'system', true);
 
   const newLead = {
@@ -685,10 +691,9 @@ function tickSlaTimers(){
     if(t.timeRemaining>0){
       t.timeRemaining--;
       if(t.timeRemaining<=0){
-        if(t.type==='initial'){ // auto reassign after 5 mins
-          triggerSlaAlert(c.id); // alert first
-          // do not reassign instantly; let user choose. If wanted auto, call reassignNextAgent(c)
-        }else{ // ongoing idle breach: show alert & start count-up
+        if(t.type==='initial'){ // alert on 5-min initial timeout
+          triggerSlaAlert(c.id);
+        }else{ // ongoing idle breach
           t.alertTriggered = true;
           t.overdue = 1;
           triggerSlaAlert(c.id);
@@ -774,7 +779,6 @@ function reassignNextAgent(conv){
    AGENT FILTER IN SLA (left side)
 =========================== */
 function showAgentConversations(agentId){
-  // Filter list view to show only that agent, with a back link
   const list = $('#convList'); list.innerHTML='';
   const back = el('button',{textContent:'← Back to All Conversations', style:'margin-bottom:10px;border:none;border-radius:10px;background:#e7f0fb;color:#1d4ed8;padding:10px 14px;cursor:pointer;font-weight:700'});
   back.addEventListener('click',()=>drawConversationsList());
@@ -819,12 +823,6 @@ setInterval(()=>{ updateClock(); tickSlaTimers(); },1000);
 
 /* Boot */
 initAgents(); initChat(); initSla();
-
-/* Page switch handlers already attached above */
-
-/* ===========================
-   END
-=========================== */
 </script>
 </body>
 </html>
