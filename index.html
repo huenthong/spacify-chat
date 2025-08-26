@@ -42,7 +42,6 @@
     .capacity-low{background:#2ecc71}.capacity-medium{background:#f39c12}.capacity-high{background:#e74c3c}
     .agent-stats{display:flex;justify-content:space-between;margin-top:12px}
     .stat-item{text-align:center}.stat-number{font-weight:800;color:#2c3e50}
-
     .queue-management{background:#fff;border-radius:15px;padding:20px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
     .queue-item{display:flex;justify-content:space-between;align-items:center;padding:14px;margin:10px 0;background:#f8f9fa;border-left:4px solid #3498db;border-radius:10px;cursor:move}
     .drag-handle{cursor:grab;color:#7f8c8d;font-size:18px}
@@ -67,28 +66,16 @@
     /* Chat */
     .chat-container{background:#fff;border-radius:15px;box-shadow:0 4px 14px rgba(0,0,0,.08);height:100%;display:flex;flex-direction:column;position:relative}
     .chat-header{background:#25D366;color:#fff;padding:18px;border-radius:15px 15px 0 0;display:flex;justify-content:space-between}
-    .chat-messages{flex:1;overflow-y:auto;padding:18px;background:#e5ddd5}
-    .message{max-width:70%;padding:12px 16px;margin:10px 0;border-radius:18px;animation:msg .2s ease-out}
+    .chat-messages{flex:1;overflow-y:auto;padding:18px;background:#e5ddd5;display:flex;flex-direction:column;gap:6px;position:relative}
+    .message{max-width:70%;padding:12px 16px;margin:6px 0;border-radius:18px;animation:msg .2s ease-out}
     @keyframes msg{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     .message-bot{background:#fff;align-self:flex-start;border-bottom-left-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
     .message-user{background:#DCF8C6;align-self:flex-end;border-bottom-right-radius:4px;margin-left:auto;box-shadow:0 1px 2px rgba(0,0,0,.08)}
     .message-system{background:#fff3cd!important;border:2px solid #ffeaa7!important;text-align:center!important;max-width:90%!important;margin:10px auto!important}
-
-    /* Floating ALPS card (always visible beside chat) */
-    .score-display{position:absolute;top:84px;right:18px;background:rgba(255,255,255,.96);padding:14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:220px;z-index:5}
+    /* Floating score (sticky inside the scroll area) */
+    .score-display{position:sticky;top:10px;align-self:flex-end;margin-left:auto;background:rgba(255,255,255,.96);padding:14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:200px;z-index:5}
     .score-bar{height:20px;background:#e0e0e0;border-radius:10px;overflow:hidden;margin:8px 0}
-    .score-fill{height:100%;border-radius:10px;transition:width .4s}
-    .score-fill.score-hot{background:linear-gradient(90deg,#e74c3c,#c0392b)}
-    .score-fill.score-warm{background:linear-gradient(90deg,#f39c12,#e67e22)}
-    .score-fill.score-cold{background:linear-gradient(90deg,#95a5a6,#7f8c8d)}
-
-    /* Consistent multi-select styling */
-    .checkbox-group{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-    .checkbox-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid #e0e0e0;background:#f8f9fa;border-radius:16px;cursor:pointer;transition:.15s}
-    .checkbox-item:hover{border-color:#25D366;background:#eafaf0}
-    .checkbox-item.selected{border-color:#25D366;background:#25D366;color:#fff}
-    .checkbox-item input{transform:scale(1.2)}
-    .continue-btn{align-self:flex-start;margin-top:4px;padding:10px 16px;border:none;border-radius:999px;background:#25D366;color:#fff;font-weight:700;cursor:pointer}
+    .score-fill{height:100%;border-radius:10px;transition:width .25s}
 
     /* SLA */
     .sla-container{display:grid;grid-template-columns:1fr 2fr;gap:20px;height:100%}
@@ -129,10 +116,16 @@
     .sla-alert{position:fixed;z-index:1100;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:26px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;border-left:5px solid #e74c3c}
     .alert-actions{display:flex;gap:12px;margin-top:16px;justify-content:center}
 
+    /* Multi-select look */
+    .checkbox-group .checkbox-item{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer}
+    .checkbox-group input[type="checkbox"]{pointer-events:none}
+    .checkbox-group .checkbox-item.selected label{font-weight:700}
+    .continue-btn{margin-top:8px;padding:8px 12px;border:none;border-radius:16px;background:#25D366;color:#fff;cursor:pointer}
+
     @media(max-width:900px){
       .leads-container{grid-template-columns:1fr}
       .sla-container{grid-template-columns:1fr}
-      .score-display{position:relative;top:0;right:0;margin:10px}
+      .score-display{position:static;align-self:auto}
     }
   </style>
 </head>
@@ -170,12 +163,12 @@
         <!-- Agents -->
         <div id="agents" class="page active">
           <div class="agents-grid">
-            <div class="agent-card top-sales available" data-agent="agent1">
+            <div class="agent-card top-sales available" data-agent="agent1" data-role="Top Sales">
               <div class="agent-header">
                 <div class="agent-name">👑 Sarah Chen</div>
                 <div class="agent-status status-available">Available</div>
               </div>
-              <div class="role-line">Top Sales • Queue Position: <span class="pos">1</span></div>
+              <div class="agent-role-text">Top Sales Agent • Queue Position: 1</div>
               <div class="capacity-bar"><div class="capacity-fill capacity-low" style="width:30%"></div></div>
               <div class="capacity-text">Capacity: 3/10 chats</div>
               <div class="agent-stats">
@@ -185,12 +178,12 @@
               </div>
             </div>
 
-            <div class="agent-card busy" data-agent="agent2">
+            <div class="agent-card busy" data-agent="agent2" data-role="Agent">
               <div class="agent-header">
                 <div class="agent-name">Mike Johnson</div>
                 <div class="agent-status status-busy">Busy</div>
               </div>
-              <div class="role-line">Agent • Queue Position: <span class="pos">2</span></div>
+              <div class="agent-role-text">Agent • Queue Position: 2</div>
               <div class="capacity-bar"><div class="capacity-fill capacity-high" style="width:80%"></div></div>
               <div class="capacity-text">Capacity: 8/10 chats</div>
               <div class="agent-stats">
@@ -200,12 +193,12 @@
               </div>
             </div>
 
-            <div class="agent-card available" data-agent="agent3">
+            <div class="agent-card available" data-agent="agent3" data-role="Agent">
               <div class="agent-header">
                 <div class="agent-name">Lisa Wong</div>
                 <div class="agent-status status-available">Available</div>
               </div>
-              <div class="role-line">Agent • Queue Position: <span class="pos">3</span></div>
+              <div class="agent-role-text">Agent • Queue Position: 3</div>
               <div class="capacity-bar"><div class="capacity-fill capacity-medium" style="width:50%"></div></div>
               <div class="capacity-text">Capacity: 5/10 chats</div>
               <div class="agent-stats">
@@ -215,12 +208,12 @@
               </div>
             </div>
 
-            <div class="agent-card away" data-agent="agent4">
+            <div class="agent-card away" data-agent="agent4" data-role="Agent">
               <div class="agent-header">
                 <div class="agent-name">David Lim</div>
                 <div class="agent-status status-away">Break</div>
               </div>
-              <div class="role-line">Agent • Queue Position: <span class="pos">4</span></div>
+              <div class="agent-role-text">Agent • Queue Position: 4</div>
               <div class="capacity-bar"><div class="capacity-fill capacity-low" style="width:0%"></div></div>
               <div class="capacity-text">Capacity: 0/10 chats</div>
               <div class="agent-stats">
@@ -230,12 +223,12 @@
               </div>
             </div>
 
-            <div class="agent-card available" data-agent="agent5">
+            <div class="agent-card available" data-agent="agent5" data-role="Agent">
               <div class="agent-header">
                 <div class="agent-name">Jennifer Tan</div>
                 <div class="agent-status status-available">Available</div>
               </div>
-              <div class="role-line">Agent • Queue Position: <span class="pos">5</span></div>
+              <div class="agent-role-text">Agent • Queue Position: 5</div>
               <div class="capacity-bar"><div class="capacity-fill capacity-low" style="width:20%"></div></div>
               <div class="capacity-text">Capacity: 2/10 chats</div>
               <div class="agent-stats">
@@ -248,34 +241,35 @@
 
           <div class="queue-management">
             <h3 style="margin-bottom:12px">📋 Agent Queue Management</h3>
-            <p style="margin-bottom:10px;color:#7f8c8d">Drag to reorder priority • Position 1 automatically becomes <strong>Top Sales</strong></p>
+            <p style="margin-bottom:10px;color:#7f8c8d">Drag to reorder priority • <strong>Position 1 becomes Top Sales</strong></p>
 
             <div id="queueList">
               <div class="queue-item" draggable="true" data-agent="agent1" data-position="1">
-                <div style="display:flex;align-items:center;gap:12px">
-                  <div class="drag-handle">≡</div><div class="queue-label">👑 <strong>Sarah Chen</strong> - Top Sales</div>
-                </div><div class="position-text">Position: 1</div>
+                <div style="display:flex;align-items:center;gap:12px"><div class="drag-handle">≡</div><div>👑 <strong>Sarah Chen</strong></div></div>
+                <div class="position-text">Position: 1</div>
               </div>
               <div class="queue-item" draggable="true" data-agent="agent2" data-position="2">
-                <div style="display:flex;align-items:center;gap:12px">
-                  <div class="drag-handle">≡</div><div class="queue-label"><strong>Mike Johnson</strong> - Agent</div>
-                </div><div class="position-text">Position: 2</div>
+                <div style="display:flex;align-items:center;gap:12px"><div class="drag-handle">≡</div><div><strong>Mike Johnson</strong></div></div>
+                <div class="position-text">Position: 2</div>
               </div>
               <div class="queue-item" draggable="true" data-agent="agent3" data-position="3">
-                <div style="display:flex;align-items:center;gap:12px">
-                  <div class="drag-handle">≡</div><div class="queue-label"><strong>Lisa Wong</strong> - Agent</div>
-                </div><div class="position-text">Position: 3</div>
+                <div style="display:flex;align-items:center;gap:12px"><div class="drag-handle">≡</div><div><strong>Lisa Wong</strong></div></div>
+                <div class="position-text">Position: 3</div>
               </div>
               <div class="queue-item" draggable="true" data-agent="agent4" data-position="4">
-                <div style="display:flex;align-items:center;gap:12px">
-                  <div class="drag-handle">≡</div><div class="queue-label"><strong>David Lim</strong> - Agent</div>
-                </div><div class="position-text">Position: 4</div>
+                <div style="display:flex;align-items:center;gap:12px"><div class="drag-handle">≡</div><div><strong>David Lim</strong></div></div>
+                <div class="position-text">Position: 4</div>
               </div>
               <div class="queue-item" draggable="true" data-agent="agent5" data-position="5">
-                <div style="display:flex;align-items:center;gap:12px">
-                  <div class="drag-handle">≡</div><div class="queue-label"><strong>Jennifer Tan</strong> - Agent</div>
-                </div><div class="position-text">Position: 5</div>
+                <div style="display:flex;align-items:center;gap:12px"><div class="drag-handle">≡</div><div><strong>Jennifer Tan</strong></div></div>
+                <div class="position-text">Position: 5</div>
               </div>
+            </div>
+
+            <div style="margin-top:16px;padding:12px;background:#e8f5e8;border-radius:10px">
+              <strong>💡 Management Controls:</strong>
+              <button class="btn btn-primary" onclick="promoteToTopSales()" style="margin:10px 6px">Promote Selected to Top Sales</button>
+              <button class="btn btn-danger" onclick="removeFromQueue()" style="margin:10px 6px">Remove from Queue</button>
             </div>
           </div>
         </div>
@@ -289,7 +283,7 @@
                 <div class="live-indicator"><div class="pulse-dot"></div>LIVE</div>
               </div>
               <div class="leads-list" id="ongoingLeads">
-                <!-- Seed items -->
+                <!-- seeds -->
                 <div class="lead-item hot" data-lead="lead1" onclick="showLeadChart('lead1')">
                   <div class="lead-score score-hot">87</div>
                   <div class="lead-info">
@@ -298,6 +292,7 @@
                     <div class="lead-timestamp">Started: 14:32 • Duration: 12 mins</div>
                   </div>
                 </div>
+
                 <div class="lead-item hot" data-lead="lead2" onclick="showLeadChart('lead2')">
                   <div class="lead-score score-hot">82</div>
                   <div class="lead-info">
@@ -306,6 +301,7 @@
                     <div class="lead-timestamp">Started: 14:45 • Duration: 8 mins</div>
                   </div>
                 </div>
+
                 <div class="lead-item warm" data-lead="lead3" onclick="showLeadChart('lead3')">
                   <div class="lead-score score-warm">65</div>
                   <div class="lead-info">
@@ -354,14 +350,15 @@
               </div>
             </div>
 
-            <div class="score-display">
-              <h4>ALPS Score</h4>
-              <div class="score-bar"><div class="score-fill score-cold" id="chatScoreBar" style="width:0%"></div></div>
-              <div id="chatScoreText">0 / 100</div>
-              <div id="chatScoreCategory">Getting Started</div>
-            </div>
-
             <div class="chat-messages" id="chatMessages">
+              <!-- floating, sticky score card (keeps visible as you scroll) -->
+              <div class="score-display" id="scoreCard">
+                <h4>ALPS Score</h4>
+                <div class="score-bar"><div class="score-fill score-cold" id="chatScoreBar" style="width:0%"></div></div>
+                <div id="chatScoreText">0 / 100</div>
+                <div id="chatScoreCategory">Getting Started</div>
+              </div>
+
               <div class="typing-indicator" id="typingIndicator">
                 <div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
               </div>
@@ -373,11 +370,10 @@
         <div id="sla" class="page">
           <div class="sla-container">
             <div class="conversations-list">
-              <h3 style="margin-bottom:12px">💬 Active Conversations</h3>
-              <div style="margin-bottom:10px;font-size:14px;color:#7f8c8d">Click on any conversation to manage</div>
-
+              <h3 style="margin-bottom:12px" id="convListTitle">💬 Active Conversations</h3>
+              <div style="margin-bottom:10px;font-size:14px;color:#7f8c8d" id="convListSub">Click on any conversation to manage</div>
               <div id="convList">
-                <!-- Seed items that count down/up in real time -->
+                <!-- legacy seeded items -->
                 <div class="conversation-item" onclick="openSLAChat('conv1')">
                   <div style="display:flex;justify-content:space-between;align-items:start">
                     <div>
@@ -420,15 +416,6 @@
                     <div style="text-align:right"><div class="status-indicator" style="font-size:12px;color:#3498db">⏳ Waiting</div></div>
                   </div>
                   <div class="sla-timer"><div class="timer-negative">-8:42</div><div style="font-size:12px">Initial assignment</div></div>
-                </div>
-              </div>
-
-              <div style="margin-top:18px;padding:12px;background:#e8f4fd;border-radius:10px">
-                <h4>📊 SLA Statistics</h4>
-                <div style="margin-top:8px;font-size:14px">
-                  <div>✅ On Time: 2/4 (50%)</div>
-                  <div>⚠️ Warning: 1/4 (25%)</div>
-                  <div>🚨 Breached: 1/4 (25%)</div>
                 </div>
               </div>
             </div>
@@ -476,7 +463,7 @@
     <h3>🚨 SLA BREACH ALERT</h3>
     <p>Agent has not responded within the SLA timeframe</p>
     <div style="margin:12px 0;padding:12px;background:#fff3cd;border-radius:8px">
-      <strong>Conversation:</strong> <span id="alertConversation">-</span><br/>
+      <strong>Conversation:</strong> <span id="alertConversation">Lead #</span><br/>
       <strong>Agent:</strong> <span id="alertAgent">-</span><br/>
       <strong>Time Exceeded:</strong> <span id="alertTime">+0:01</span>
     </div>
@@ -494,9 +481,12 @@
     ======================== */
     let currentPage = 'agents';
     let selectedConversation = null;
-    let alertConvId = null; // for SLA alert
+    let lastAlertConvId = null;
     let leadChart = null;
     let realTimeInterval;
+
+    // left panel view state (so we can refresh it after reassignment)
+    let leftPanelView = { type:'all', agentId:null };
 
     // capacities match order of cards (agent1..agent5)
     let agentCapacities = [3,8,5,0,2];
@@ -512,13 +502,17 @@
     // Runtime lead/conversation tracking
     let nextLeadId = 2024006;
     let completedLeads = [];
-    let activeConversations = {}; // convId -> conversation object
-    let agentConversations = {agent1:[],agent2:[],agent3:[],agent4:[],agent5:[]};
+    const activeConversations = {}; // convId -> conversation object
+    const agentConversations = {agent1:[],agent2:[],agent3:[],agent4:[],agent5:[]};
 
-    // Chat state
-    let chatCurrentStep = 0;
+    // Chat state + scoring
     let chatUserResponses = {};
     let chatAlpsScore = 0;
+    let chatCurrentStep = 0;
+
+    // switchable scoring hook (use later when you have a backend / pickle)
+    const USE_BACKEND_SCORING = false;       // flip to true when backend ready
+    const BACKEND_SCORE_ENDPOINT = '/score'; // POST {responses} -> {score}
 
     const PROPERTIES = [
       "121 Residence","7 Tree Seven","Acacia Residence","Ara Damansara","Ampang","Arte Cheras","Astoria",
@@ -530,6 +524,7 @@
     ];
     const AREAS = ["KL/Selangor","Perak","JB/Penang","Negeri Sembilan","Genting Highlands"];
 
+    // Questions (add conditional "nationality_other")
     const questions = [
       {id:'area',text:"Hi! Welcome to BeLive. I'm here to help you find the perfect room. Choose an area:",type:'select',options:AREAS,weight:15},
       {id:'property',text:"Great choice! Here are the available properties in your selected area:",type:'property_select',weight:10},
@@ -542,15 +537,14 @@
       {id:'gender',text:'What\'s your gender?',type:'select',options:['Male','Female'],weight:0},
       {id:'unit_spec',text:'What type of unit do you prefer? (You can select multiple)',type:'multiple',options:['Female unit','Male unit','Mixed Gender unit'],weight:5},
       {id:'workplace',text:'Where is your workplace? This helps us recommend the closest property.',type:'input',placeholder:'e.g., KLCC, Cyberjaya',weight:10},
-      {id:'nationality',text:'What\'s your nationality?',type:'select',options:['Malaysian','Others'],weight:0}
+      {id:'nationality',text:'What\'s your nationality?',type:'select',options:['Malaysian','Others'],weight:4},
+      {id:'nationality_other',text:'Please specify your nationality:',type:'input',placeholder:'e.g., Singaporean',weight:3, conditional:(ans)=> ans.nationality==='Others'}
     ];
 
     /* =======================
        INIT
     ======================== */
-    document.addEventListener('DOMContentLoaded', initializeDashboard);
-
-    function initializeDashboard(){
+    document.addEventListener('DOMContentLoaded', () => {
       // Sidebar routing
       document.querySelectorAll('.nav-item').forEach(item=>{
         item.addEventListener('click',()=>switchPage(item.dataset.page));
@@ -558,15 +552,12 @@
 
       // Agent card click -> agent conversations
       document.querySelectorAll('.agent-card').forEach(card=>{
-        card.addEventListener('click',()=>{
-          const agentId = card.getAttribute('data-agent');
-          goToAgentConversations(agentId);
-        });
+        card.addEventListener('click',()=>goToAgentConversations(card.getAttribute('data-agent')));
       });
 
       initializeDragAndDrop();
       startRealTimeUpdates();
-    }
+    });
 
     /* =======================
        PAGE ROUTER
@@ -578,7 +569,8 @@
       document.querySelector(`.nav-item[data-page="${pageName}"]`).classList.add('active');
       currentPage = pageName;
       updatePageHeader(pageName);
-      if(pageName==='chat'){ setTimeout(initializeChat,300); }
+      if(pageName==='chat'){ setTimeout(initializeChat,200); }
+      if(pageName==='sla'){ showAllConversations(); }
     }
     function updatePageHeader(page){
       const t={agents:'Agent Status Dashboard',leads:'Lead Management',chat:'AI Chat Interface',sla:'SLA Monitoring'};
@@ -595,9 +587,7 @@
       realTimeInterval = setInterval(()=>{
         document.getElementById('lastUpdate').textContent=new Date().toLocaleTimeString();
         updateAgentStats();
-        updateSLATimers();
-        // keep alert timer running
-        updateAlertTimerDisplay();
+        tickSLATimers();
       },1000);
     }
 
@@ -618,10 +608,10 @@
     }
 
     /* =======================
-       SLA TIMERS
+       SLA TIMERS + UI
     ======================== */
-    function updateSLATimers(){
-      // Active conversations (created from chat)
+    function tickSLATimers(){
+      // Active runtime conversations
       Object.values(activeConversations).forEach(conv=>{
         const t = conv.slaTimer;
         if(!t) return;
@@ -638,139 +628,137 @@
         }else if(t.overdue>0 || t.alertTriggered){
           t.overdue++;
         }
-        updateConversationUI(conv);
+        updateConversationListItem(conv);
+        if(selectedConversation===conv.id) { updateDisplayedHeaderTimer(conv); }
       });
 
       // Legacy seeded items
-      Object.keys(slaTimers).forEach(id=>{
+      for(const id of Object.keys(slaTimers)){
         const t = slaTimers[id];
         const el = document.querySelector(`[onclick="openSLAChat('${id}')"]`);
-        if(!t || !el) return;
+        if(!t || !el) continue;
 
         const timerEl = el.querySelector('.timer-negative, .timer-positive');
         if(!t.breached){
           t.negative--;
-          if(t.negative<=0){ t.breached=true; t.positive=Math.abs(t.negative); t.negative=0; triggerSLAAlert(id); }
+          if(t.negative<=0){ t.breached=true; t.positive=Math.abs(t.negative); t.negative=0; if(id==='conv3'){ triggerSLAAlert(id); } }
           const m = Math.floor(t.negative/60), s = (t.negative%60).toString().padStart(2,'0');
           timerEl.textContent = `-${m}:${s}`;
           timerEl.className='timer-negative';
           el.className = 'conversation-item' + (t.negative<=120?' sla-warning':'');
-
-          // if header is on this conv, update it
-          if(selectedConversation===id){ document.getElementById('slaCurrentTimer').textContent=`-${m}:${s}`; document.getElementById('slaCurrentTimer').style.background='rgba(46,204,113,.2)'; }
         }else{
           t.positive++;
           const m = Math.floor(t.positive/60), s = (t.positive%60).toString().padStart(2,'0');
           timerEl.textContent = `+${m}:${s}`;
           timerEl.className='timer-positive';
           el.className='conversation-item sla-breach';
-          if(selectedConversation===id){ document.getElementById('slaCurrentTimer').textContent=`+${m}:${s}`; document.getElementById('slaCurrentTimer').style.background='rgba(231,76,60,.2)'; }
         }
-      });
-
-      // keep header timer live for selected ACTIVE conversation
-      if(selectedConversation && activeConversations[selectedConversation]){
-        const info = getConversationTimer(activeConversations[selectedConversation]);
-        const tEl = document.getElementById('slaCurrentTimer');
-        tEl.textContent = info.text;
-        tEl.style.background = info.class==='timer-positive'?'rgba(231,76,60,.2)':'rgba(46,204,113,.2)';
       }
     }
 
-    function updateConversationUI(conv){
+    function updateDisplayedHeaderTimer(conv){
+      const info = getConversationTimer(conv);
+      const el = document.getElementById('slaCurrentTimer');
+      el.textContent = info.text;
+      el.style.background = info.class==='timer-positive'?'rgba(231,76,60,.2)':'rgba(46,204,113,.2)';
+      // Also ensure title reflects current agent (handles live reassignment)
+      document.getElementById('slaCurrentChat').textContent = `Lead ${conv.leadNumber} - ${conv.agentName}`;
+      document.getElementById('slaCurrentDetails').textContent = `${conv.area} • ALPS: ${conv.score} • ${getStatusText(conv.status)}`;
+    }
+
+    function updateConversationListItem(conv){
       const el = document.querySelector(`[onclick="openSLAChat('${conv.id}')"]`);
       if(!el) return;
-      const timerInfo = getConversationTimer(conv);
-      const statusInfo = getConversationStatus(conv);
+      const t = getConversationTimer(conv);
+      const s = getConversationStatus(conv);
       const timerEl = el.querySelector('.timer-negative, .timer-positive');
       const statusEl = el.querySelector('.status-indicator');
-
-      timerEl.textContent = timerInfo.text;
-      timerEl.className = timerInfo.class;
-      statusEl.textContent = statusInfo.status;
-      statusEl.style.color = statusInfo.color;
+      timerEl.textContent = t.text;
+      timerEl.className = t.class;
+      statusEl.textContent = s.status;
+      statusEl.style.color = s.color;
       el.className = getConversationClass(conv);
     }
 
     function triggerSLAAlert(convId){
-      alertConvId = convId;
+      lastAlertConvId = convId;
       const active = activeConversations[convId];
       if(active){
         document.getElementById('alertConversation').textContent = `Lead ${active.leadNumber}`;
         document.getElementById('alertAgent').textContent = active.agentName;
       }else{
         const map={conv1:['Lead #2024001','Sarah Chen'],conv2:['Lead #2024002','Mike Johnson'],conv3:['Lead #2024003','Lisa Wong'],conv4:['Lead #2024004','In Queue']};
-        const d = map[convId]; if(d){document.getElementById('alertConversation').textContent=d[0];document.getElementById('alertAgent').textContent=d[1];}
+        const d = map[convId] || ['Lead','-'];
+        document.getElementById('alertConversation').textContent=d[0];
+        document.getElementById('alertAgent').textContent=d[1];
       }
+      // live-running timer in alert
+      document.getElementById('alertTime').textContent = '+0:01';
       document.getElementById('slaAlert').style.display = 'block';
-      updateAlertTimerDisplay(); // start with a fresh value
+      // keep the alert timer counting every second while visible
+      let sec = 1;
+      const id = setInterval(()=>{
+        if(document.getElementById('slaAlert').style.display!=='block'){ clearInterval(id); return; }
+        sec++;
+        document.getElementById('alertTime').textContent = `+${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
+      },1000);
     }
-
-    function updateAlertTimerDisplay(){
-      if(!alertConvId) return;
-      const active = activeConversations[alertConvId];
-      let txt = '+0:01';
-      if(active){
-        const over = Math.max(1, active.slaTimer.overdue||0);
-        const m = Math.floor(over/60), s = (over%60).toString().padStart(2,'0'); txt = `+${m}:${s}`;
-      }else if(slaTimers[alertConvId]){
-        const over = Math.max(1, slaTimers[alertConvId].breached ? slaTimers[alertConvId].positive : 0);
-        const m = Math.floor(over/60), s = (over%60).toString().padStart(2,'0'); txt = `+${m}:${s}`;
-      }
-      document.getElementById('alertTime').textContent = txt;
-    }
-
     function goToConversation(){
-      if(!alertConvId) return;
       document.getElementById('slaAlert').style.display='none';
       switchPage('sla');
-      setTimeout(()=>openSLAChat(alertConvId),300);
-      alertConvId = null;
+      if(lastAlertConvId){ setTimeout(()=>openSLAChat(lastAlertConvId),200); }
     }
-
     function reassignConversation(){
-      if(!alertConvId) return;
-      const active = activeConversations[alertConvId];
-      if(active){ reassignToNextAgent(active); }
-      else if(slaTimers[alertConvId]){ slaTimers[alertConvId] = {negative:600,positive:0,breached:false}; }
       document.getElementById('slaAlert').style.display='none';
-      alertConvId = null;
+      if(lastAlertConvId && activeConversations[lastAlertConvId]){
+        reassignToNextAgent(activeConversations[lastAlertConvId]);
+      }else{
+        alert('Conversation has been reassigned to the next available agent.');
+      }
     }
 
     /* =======================
-       ROUTING / AGENTS
+       AGENT FIND / REASSIGN
     ======================== */
     function findBestAgent(){
-      for(let i=1;i<=5;i++){
-        const id = `agent${i}`;
-        const idx = i-1;
+      // in queue order from queueList DOM
+      const order = [...document.querySelectorAll('#queueList .queue-item')].map(x=>x.dataset.agent);
+      for(const id of order){
+        const idx = Number(id.replace('agent',''))-1;
         const card = document.querySelector(`[data-agent="${id}"]`);
         const available = card && card.classList.contains('available');
-        if(available && agentCapacities[idx] < 10){ return {id, name:card.querySelector('.agent-name').textContent.replace('👑 ','')}; }
+        if(available && agentCapacities[idx] < 10){
+          return {id, name:card.querySelector('.agent-name').textContent.replace('👑 ','')};
+        }
       }
       return null;
     }
     function findNextAgent(currentId){
-      const ids=['agent1','agent2','agent3','agent4','agent5'];
-      const start = ids.indexOf(currentId);
-      const rotated = [...ids.slice(start+1),...ids.slice(0,start)];
+      const order = [...document.querySelectorAll('#queueList .queue-item')].map(x=>x.dataset.agent);
+      const start = order.indexOf(currentId);
+      const rotated = [...order.slice(start+1),...order.slice(0,start)];
       for(const id of rotated){
         const idx = Number(id.replace('agent',''))-1;
         const card = document.querySelector(`[data-agent="${id}"]`);
         const available = card && card.classList.contains('available');
-        if(available && agentCapacities[idx] < 10){ return {id,name:card.querySelector('.agent-name').textContent.replace('👑 ','')}; }
+        if(available && agentCapacities[idx] < 10){
+          return {id,name:card.querySelector('.agent-name').textContent.replace('👑 ','')};
+        }
       }
       return null;
     }
 
     function reassignToNextAgent(conv){
-      const next = findNextAgent(conv.agentId);
+      const oldAgent = conv.agentId;
+      const next = findNextAgent(oldAgent);
       if(next){
-        const arr = agentConversations[conv.agentId];
+        // remove from old agent
+        const arr = agentConversations[oldAgent];
         const ix = arr.findIndex(c=>c.id===conv.id);
         if(ix>-1) arr.splice(ix,1);
-        agentCapacities[Number(conv.agentId.replace('agent',''))-1]--;
+        agentCapacities[Number(oldAgent.replace('agent',''))-1]--;
 
+        // assign to new agent
         conv.agentId = next.id;
         conv.agentName = next.name;
         conv.assignedTime = new Date();
@@ -782,6 +770,15 @@
         conv.messages.push({type:'system',text:`Conversation reassigned to ${next.name} due to initial response timeout.`,time:new Date().toLocaleTimeString()});
         updateLeadAgent(conv.leadId,next.name);
         showNotification(`Lead ${conv.leadNumber} reassigned to ${next.name}`,'warning');
+
+        // rerender left panel view and selected header if opened
+        if(leftPanelView.type==='agent'){
+          // If you were viewing old agent list, refresh it (conversation disappears)
+          showAgentConversationsList(leftPanelView.agentId);
+        }else{
+          showAllConversations();
+        }
+        if(selectedConversation===conv.id){ loadActiveConversation(conv); }
       }else{
         conv.status='unassigned';
         conv.slaTimer.overdue++;
@@ -842,16 +839,14 @@
           </div>
           <div style="text-align:right"><div class="status-indicator" style="font-size:12px;color:#f39c12">⏳ Waiting</div></div>
         </div>
-        <div class="sla-timer">
-          <div class="timer-negative">-5:00</div>
-          <div style="font-size:12px">Initial response due</div>
-        </div>`;
+        <div class="sla-timer"><div class="timer-negative">-5:00</div><div style="font-size:12px">Initial response due</div></div>`;
       list.prepend(div);
     }
 
     /* =======================
        LEAD CHART
     ======================== */
+    let leadChartInstance=null;
     function showLeadChart(leadId){
       const data = getLeadData(leadId);
       document.getElementById('chartTitle').textContent = `${data.name} - Score Progression`;
@@ -867,13 +862,17 @@
       if(c){
         const scores=[0]; let cur=0;
         questions.forEach(q=>{
+          if(q.conditional && !q.conditional(c.responses)) return;
           const r = c.responses[q.id]; if(!r) return;
           let inc=0;
           if(q.id==='area'||q.id==='property') inc=q.weight;
           else if(q.id==='budget'){ const b=parseInt(r); inc=b>=800?q.weight:b>=600?q.weight*.7:b>=400?q.weight*.4:q.weight*.1; }
           else if(q.id==='movein'){ const d=new Date(r), t=new Date(), diff=Math.ceil((d-t)/(1000*60*60*24)); inc=diff<=7?q.weight:diff<=30?q.weight*.8:diff<=60?q.weight*.6:q.weight*.3; }
+          else if(q.id==='nationality'){ inc = r==='Malaysian' ? q.weight*0.7 : q.weight*0.9; }
+          else if(q.id==='nationality_other'){ inc = q.weight; }
           else inc=q.weight*.8;
-          cur+=inc; scores.push(Math.round(cur));
+          cur=Math.min(100,Math.max(0,cur+inc));
+          scores.push(Math.round(cur));
         });
         return {name:`Lead ${c.leadNumber}`,scores, messages:['Initial','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Final'], details:`${c.area} • Budget: RM${c.budget} • Move-in: ${c.movein} • Status: ${c.status}`};
       }
@@ -881,8 +880,8 @@
     }
     function createLeadChart(d){
       const ctx = document.getElementById('leadChart').getContext('2d');
-      if(leadChart) leadChart.destroy();
-      leadChart = new Chart(ctx,{
+      if(leadChartInstance) leadChartInstance.destroy();
+      leadChartInstance = new Chart(ctx,{
         type:'line',
         data:{labels:d.messages,datasets:[{label:'ALPS Score',data:d.scores,borderColor:'#3498db',backgroundColor:'rgba(52,152,219,.1)',borderWidth:3,fill:true,tension:.4,pointBackgroundColor:'#3498db',pointBorderColor:'#fff',pointBorderWidth:2,pointRadius:5}]},
         options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100},x:{}}}
@@ -908,7 +907,7 @@
           </div>
         </div>`;
     }
-    function closeModal(){ document.getElementById('chartModal').style.display='none'; if(leadChart){leadChart.destroy();leadChart=null;} }
+    function closeModal(){ document.getElementById('chartModal').style.display='none'; if(leadChartInstance){leadChartInstance.destroy();leadChartInstance=null;} }
 
     /* =======================
        SLA CHAT VIEW
@@ -935,9 +934,6 @@
           {type:'customer',text:'Hi, looking for accommodation in PJ',time:'14:52'},
           {type:'agent',text:'Sure! What type are you after?',time:'14:53'},
           {type:'customer',text:'Single room, RM750. When can I view?',time:'14:54'}
-        ]},
-        conv4:{title:'Lead #2024004 - In Queue',details:'JB/Penang • ALPS: 58 • Initial assignment',messages:[
-          {type:'customer',text:'Hello, any room available next month?',time:'10:20'}
         ]}
       };
       const l = legacy[convId];
@@ -966,11 +962,7 @@
     function loadActiveConversation(conv){
       document.getElementById('slaCurrentChat').textContent = `Lead ${conv.leadNumber} - ${conv.agentName}`;
       document.getElementById('slaCurrentDetails').textContent = `${conv.area} • ALPS: ${conv.score} • ${getStatusText(conv.status)}`;
-
-      const info = getConversationTimer(conv);
-      const tEl = document.getElementById('slaCurrentTimer');
-      tEl.textContent = info.text;
-      tEl.style.background = info.class==='timer-positive'?'rgba(231,76,60,.2)':'rgba(46,204,113,.2)';
+      updateDisplayedHeaderTimer(conv);
 
       const box = document.getElementById('slaMessages');
       box.innerHTML='';
@@ -983,10 +975,11 @@
       });
       box.scrollTop=box.scrollHeight;
       document.getElementById('slaInputArea').style.display='flex';
+      // ensure item exists in left list (in case it just got created)
+      updateConversationListItem(conv);
     }
 
     function handleSLAMessage(e){ if(e.key==='Enter') sendSLAMessage(); }
-
     function sendSLAMessage(){
       const input = document.getElementById('slaMessageInput');
       const text = input.value.trim(); if(!text) return;
@@ -1007,6 +1000,10 @@
         }else{
           conv.slaTimer.timeRemaining=600; conv.slaTimer.alertTriggered=false; conv.slaTimer.overdue=0;
         }
+        updateConversationListItem(conv);
+        updateDisplayedHeaderTimer(conv);
+
+        // Simulated customer reply
         setTimeout(()=>{
           const replies=["Thanks! That helps.","Great, what are next steps?","I'm interested to view.","Sounds good!","👍"];
           const r=replies[Math.floor(Math.random()*replies.length)];
@@ -1016,8 +1013,11 @@
           box.appendChild(u); box.scrollTop=box.scrollHeight;
           conv.messages.push({type:'customer',text:r,time:new Date().toLocaleTimeString()});
           conv.slaTimer.timeRemaining=600;
+          updateConversationListItem(conv);
+          updateDisplayedHeaderTimer(conv);
         },2500);
       }else{
+        // Legacy list: just reset its timer if exists
         if(selectedConversation && slaTimers[selectedConversation]){
           slaTimers[selectedConversation].negative=1200;
           slaTimers[selectedConversation].positive=0;
@@ -1076,13 +1076,29 @@
     function initializeChat(){
       chatCurrentStep=0; chatUserResponses={}; chatAlpsScore=0;
       const box=document.getElementById('chatMessages');
-      box.innerHTML = `<div class="typing-indicator" id="typingIndicator"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+      box.innerHTML = `
+        <div class="score-display" id="scoreCard">
+          <h4>ALPS Score</h4>
+          <div class="score-bar"><div class="score-fill score-cold" id="chatScoreBar" style="width:0%"></div></div>
+          <div id="chatScoreText">0 / 100</div>
+          <div id="chatScoreCategory">Getting Started</div>
+        </div>
+        <div class="typing-indicator" id="typingIndicator">
+          <div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+        </div>`;
       updateChatScoreDisplay();
-      setTimeout(()=>askQuestion(0),600);
+      setTimeout(()=>askQuestion(0),400);
     }
+
     function askQuestion(i){
-      if(i>=questions.length){ return finalizeLead(); }
-      const q=questions[i]; chatCurrentStep=i; showTyping();
+      // find next question that passes conditional (if any)
+      let idx = i;
+      while(idx<questions.length && questions[idx].conditional && !questions[idx].conditional(chatUserResponses)){ idx++; }
+      if(idx>=questions.length){ return finalizeLead(); }
+
+      const q=questions[idx];
+      chatCurrentStep=idx;
+      showTyping();
       setTimeout(()=>{
         hideTyping();
         let html=`<div>${q.text}</div>`;
@@ -1103,8 +1119,9 @@
           html+=createMultipleChoiceOptions(q.id,q.options);
         }
         addMessage(html,'bot');
-      },900);
+      },600);
     }
+
     function createMultipleChoiceOptions(id,opts){
       let c=`<div class="checkbox-group" id="checkboxGroup_${id}">`;
       opts.forEach((o,idx)=>{
@@ -1114,31 +1131,32 @@
       c+=`<button class="continue-btn" onclick="submitMultipleChoice('${id}')">Continue</button></div>`;
       return c;
     }
-    function toggleMultipleChoice(oid,id){
-      const cb=document.getElementById(oid);
-      const item=document.querySelector(`[data-option-id="${oid}"]`);
-      cb.checked=!cb.checked;
-      item.classList.toggle('selected',cb.checked);
-    }
+    function toggleMultipleChoice(oid){ const cb=document.getElementById(oid); const item=document.querySelector(`[data-option-id="${oid}"]`); cb.checked=!cb.checked; item.classList.toggle('selected',cb.checked); }
     function submitMultipleChoice(id){
       const vals=[...document.querySelectorAll(`#checkboxGroup_${id} input[type="checkbox"]:checked`)].map(cb=>cb.value);
       if(!vals.length) return alert('Please select at least one option');
       chatUserResponses[id]=vals; addMessage(vals.join(', '),'user');
-      const q=questions.find(q=>q.id===id); calculateAlpsScore(id,vals,q.weight); setTimeout(()=>askQuestion(chatCurrentStep+1),600);
+      recomputeAndRenderScore();
+      setTimeout(()=>askQuestion(chatCurrentStep+1),400);
     }
+
     function addMessage(html,who){ const box=document.getElementById('chatMessages'); const d=document.createElement('div'); d.className='message message-'+who; d.innerHTML=html; box.appendChild(d); box.scrollTop=box.scrollHeight; }
     function showTyping(){ const el=document.getElementById('typingIndicator'); if(el){el.style.display='block'; document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;}}
     function hideTyping(){ const el=document.getElementById('typingIndicator'); if(el) el.style.display='none'; }
-    function selectOption(id,val){ chatUserResponses[id]=val; addMessage(val,'user'); const q=questions.find(q=>q.id===id); calculateAlpsScore(id,val,q.weight); setTimeout(()=>askQuestion(chatCurrentStep+1),500); }
-    function handleInputKeypress(e,id){ if(e.key==='Enter'){ const v=e.target.value.trim(); if(v) selectOption(id,v); } }
+    function selectOption(id,val){
+      chatUserResponses[id]=val; addMessage(val,'user');
+      recomputeAndRenderScore();
+      setTimeout(()=>{
+        // if user chose "Others" for nationality, next question is the free-text (handled by conditional)
+        askQuestion(chatCurrentStep+1);
+      },300);
+    }
+    function handleInputKeypress(e,id){ if(e.key==='Enter'){ const v=e.target.value.trim(); if(v) { selectOption(id,v); } } }
     function handleDateChange(e,id){ const v=e.target.value; if(v) selectOption(id,v); }
-    function calculateAlpsScore(id,val,weight){
-      let inc=0;
-      if(id==='area'||id==='property'){ inc=weight; }
-      else if(id==='budget'){ const b=parseInt(val); inc=b>=800?weight:b>=600?weight*.7:b>=400?weight*.4:weight*.1; }
-      else if(id==='movein'){ const d=new Date(val), t=new Date(), diff=Math.ceil((d-t)/(1000*60*60*24)); inc=diff<=7?weight:diff<=30?weight*.8:diff<=60?weight*.6:weight*.3; }
-      else inc=weight*.8;
-      chatAlpsScore=Math.min(100,chatAlpsScore+inc);
+    function getPropertiesForArea(){ return PROPERTIES; }
+
+    async function recomputeAndRenderScore(){
+      chatAlpsScore = await getScore(chatUserResponses);
       updateChatScoreDisplay();
     }
     function updateChatScoreDisplay(){
@@ -1151,12 +1169,44 @@
       text.textContent=`${Math.round(chatAlpsScore)} / 100`;
       cat.textContent = chatAlpsScore>=70?'Hot Lead 🔥':chatAlpsScore>=40?'Warm Lead ⭐':'Cold Lead ❄️';
     }
-    function getPropertiesForArea(area){ return PROPERTIES; }
+
+    // Rule-based fallback (replace with backend any time)
+    async function getScore(responses){
+      if(USE_BACKEND_SCORING){
+        try{
+          const res = await fetch(BACKEND_SCORE_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({responses})});
+          const data = await res.json();
+          if(Number.isFinite(data.score)) return Math.max(0,Math.min(100,Number(data.score)));
+        }catch(e){ console.warn('Backend scoring failed, falling back to rules', e); }
+      }
+      return ruleScore(responses);
+    }
+    function ruleScore(ans){
+      let score = 0;
+      // weights mirror questions; negatives/positives allowed
+      if(ans.area) score += 15;
+      if(ans.property) score += 10;
+      if(ans.budget){ const b=parseInt(ans.budget,10); score += b>=800?25:b>=600?17.5:b>=400?10:3; }
+      if(ans.pax){ score += ans.pax==='1 person'?8:ans.pax==='2 people'?7:5; }
+      if(ans.car){ score += ans.car==='Yes'?4:3; }
+      if(ans.parking){ score += ans.parking==='Yes'?5:2; }
+      if(ans.movein){ const d=new Date(ans.movein), t=new Date(), diff=Math.ceil((d-t)/(1000*60*60*24)); score += diff<=7?20:diff<=30?16:diff<=60?12:6; }
+      if(ans.tenancy){ score += ans.tenancy==='12 months'?5:4; }
+      if(ans.unit_spec){ score += Array.isArray(ans.unit_spec)&&ans.unit_spec.includes('Mixed Gender unit')?3:5; }
+      if(ans.workplace){ score += 8; }
+      if(ans.nationality){ score += ans.nationality==='Malaysian'?2.8:3.6; }
+      if(ans.nationality_other){ score += 3; }
+      // clamp
+      return Math.max(0,Math.min(100,Math.round(score)));
+    }
 
     function finalizeLead(){
       showTyping();
-      setTimeout(()=>{
+      setTimeout(async ()=>{
         hideTyping();
+        chatAlpsScore = await getScore(chatUserResponses);
+        updateChatScoreDisplay();
+
         const newLead = {
           id:`lead${nextLeadId}`,
           leadNumber:`#${nextLeadId}`,
@@ -1178,7 +1228,7 @@
               <p>This lead will be routed to our top sales agent for immediate attention.</p>
               <p>Routing to agent now...</p>
             </div>`,'bot');
-          setTimeout(()=>routeLeadToAgent(newLead),1200);
+          setTimeout(()=>routeLeadToAgent(newLead),800);
         }else{
           addMessage(`
             <div style="background:#fff8e1;padding:12px;border-radius:12px;border-left:4px solid #f39c12">
@@ -1189,7 +1239,7 @@
           addToOngoingLeads(newLead);
         }
         nextLeadId++;
-      },600);
+      },500);
     }
 
     function routeLeadToAgent(lead){
@@ -1238,19 +1288,17 @@
     ======================== */
     function goToAgentConversations(agentId){
       switchPage('sla');
-      setTimeout(()=>showAgentConversationsList(agentId),250);
+      setTimeout(()=>showAgentConversationsList(agentId),200);
     }
     function showAgentConversationsList(agentId){
+      leftPanelView = {type:'agent', agentId};
       const names={agent1:'Sarah Chen',agent2:'Mike Johnson',agent3:'Lisa Wong',agent4:'David Lim',agent5:'Jennifer Tan'};
       const list=document.querySelector('.conversations-list');
       const convs=agentConversations[agentId]||[];
-      list.innerHTML = `
-        <h3 style="margin-bottom:12px">💬 ${names[agentId]}'s Conversations</h3>
-        <div style="margin-bottom:10px;font-size:14px;color:#7f8c8d">Active: ${convs.length} conversations</div>
-        <button onclick="showAllConversations()" class="btn btn-primary" style="margin-bottom:10px">← Back to All Conversations</button>
-        <div id="convList"></div>
-      `;
-      const container = list.querySelector('#convList');
+      document.getElementById('convListTitle').textContent = `💬 ${names[agentId]}'s Conversations`;
+      document.getElementById('convListSub').innerHTML = `Active: ${convs.length} conversations <br/><button onclick="showAllConversations()" class="btn btn-primary" style="margin-top:8px">← Back to All Conversations</button>`;
+      const container = document.getElementById('convList');
+      container.innerHTML='';
       if(!convs.length){
         container.innerHTML = `<div style="text-align:center;color:#7f8c8d;margin-top:40px"><p>No active conversations</p></div>`;
         return;
@@ -1270,13 +1318,12 @@
       });
     }
     function showAllConversations(){
-      const list=document.querySelector('.conversations-list');
-      list.innerHTML = `
-        <h3 style="margin-bottom:12px">💬 Active Conversations</h3>
-        <div style="margin-bottom:10px;font-size:14px;color:#7f8c8d">Click on any conversation to manage</div>
-        <div id="convList"></div>
-      `;
-      const container=list.querySelector('#convList');
+      leftPanelView = {type:'all', agentId:null};
+      document.getElementById('convListTitle').textContent = '💬 Active Conversations';
+      document.getElementById('convListSub').textContent = 'Click on any conversation to manage';
+      const container=document.getElementById('convList');
+      container.innerHTML='';
+      // runtime conversations
       Object.values(activeConversations).forEach(c=>{
         const el=document.createElement('div');
         el.className=getConversationClass(c);
@@ -1290,7 +1337,7 @@
           <div class="sla-timer"><div class="${t.class}">${t.text}</div><div style="font-size:12px">${t.description}</div></div>`;
         container.appendChild(el);
       });
-
+      // legacy
       ['conv1','conv2','conv3','conv4'].forEach(id=>{
         const meta={conv1:['Lead #2024001 • Sarah Chen','Mont Kiara',87,'Active'],conv2:['Lead #2024002 • Mike Johnson','KL/Selangor',82,'Warning'],conv3:['Lead #2024003 • Lisa Wong','Petaling Jaya',65,'Breach'],conv4:['Lead #2024004 • In Queue','JB/Penang',58,'Waiting']};
         const m=meta[id];
@@ -1329,7 +1376,6 @@
           const rect=t.getBoundingClientRect(); const mid=rect.top+rect.height/2;
           if(e.clientY<mid) list.insertBefore(dragged,t); else list.insertBefore(dragged,t.nextSibling);
           updateQueuePositions();
-          applyTopSalesFromQueue();
         }
         dragged=null;
       });
@@ -1337,39 +1383,29 @@
     function updateQueuePositions(){
       const items=[...document.querySelectorAll('#queueList .queue-item')];
       items.forEach((it,i)=>{ it.querySelector('.position-text').textContent=`Position: ${i+1}`; it.dataset.position=i+1; });
-      // update positions on agent cards too
-      items.forEach((it,i)=>{
-        const id = it.dataset.agent;
-        const card = document.querySelector(`.agent-card[data-agent="${id}"]`);
-        if(card){ card.querySelector('.role-line .pos').textContent = (i+1); }
-      });
-    }
-    function applyTopSalesFromQueue(){
-      const items=[...document.querySelectorAll('#queueList .queue-item')];
-      // determine top (position 1)
-      const topId = items[0].dataset.agent;
+
+      // Update "Top Sales" tag on agent cards (position 1)
+      const topAgentId = items[0]?.dataset.agent;
       document.querySelectorAll('.agent-card').forEach(card=>{
-        const id = card.dataset.agent;
+        card.classList.remove('top-sales');
         const nameEl = card.querySelector('.agent-name');
-        const roleLine = card.querySelector('.role-line');
-        if(id===topId){
+        if(nameEl) nameEl.textContent = nameEl.textContent.replace('👑 ','');
+        const roleText = card.querySelector('.agent-role-text');
+        const id = card.getAttribute('data-agent');
+        const idx = items.findIndex(i=>i.dataset.agent===id);
+        roleText.textContent = `${id===topAgentId?'Top Sales Agent':'Agent'} • Queue Position: ${idx+1}`;
+        if(id===topAgentId){
           card.classList.add('top-sales');
-          if(!nameEl.textContent.startsWith('👑')) nameEl.textContent = '👑 ' + nameEl.textContent.replace('👑 ','');
-          roleLine.childNodes[0].nodeValue = 'Top Sales • Queue Position: '; // keep span(pos)
-        }else{
-          card.classList.remove('top-sales');
-          nameEl.textContent = nameEl.textContent.replace('👑 ','');
-          roleLine.childNodes[0].nodeValue = 'Agent • Queue Position: ';
+          nameEl.textContent = '👑 ' + nameEl.textContent;
         }
       });
-      // update queue labels text too
-      items.forEach((it,i)=>{
-        const label=it.querySelector('.queue-label');
-        const name=label.textContent.replace('👑 ','').replace(' - Top Sales','').replace(' - Agent','');
-        if(i===0){ label.innerHTML = '👑 <strong>'+name+'</strong> - Top Sales'; }
-        else{ label.innerHTML = '<strong>'+name+'</strong> - Agent'; }
-      });
     }
+
+    /* =======================
+       MISC MANAGEMENT BUTTONS
+    ======================== */
+    function promoteToTopSales(){ alert('Selected agent has been promoted to Top Sales position.'); }
+    function removeFromQueue(){ alert('Selected agent has been removed from the queue.'); }
 
     /* =======================
        CLICK OUTSIDE MODALS
@@ -1380,14 +1416,10 @@
       const alertBox=document.getElementById('slaAlert');
       if(e.target===alertBox) alertBox.style.display='none';
     });
-
-    /* =======================
-       CHAT HELPERS
-    ======================== */
-    function handleSLAMessage(event){} // (already wired inside sendSLAMessage)
   </script>
 </body>
 </html>
+
 
 
 
