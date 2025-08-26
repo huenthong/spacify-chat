@@ -74,11 +74,9 @@
   .bot{background:#fff;margin-right:auto;border-bottom-left-radius:4px}
   .user{background:#DCF8C6;margin-left:auto;border-bottom-right-radius:4px}
   .sys{background:#fff3cd;border:2px solid #ffe08a;margin:8px auto;text-align:center;max-width:90%}
-  /* chat options */
   .options{display:flex;flex-direction:column;gap:8px;margin-top:8px}
   .opt-btn{padding:12px 16px;background:#f0f0f0;border:2px solid #e0e0e0;border-radius:20px;text-align:center;cursor:pointer;transition:.15s}
   .opt-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff}
-  /* Multiple-choice (fixed look) */
   .check-group{display:flex;flex-direction:column;gap:8px;margin-top:8px}
   .check-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border:2px solid #e0e0e0;background:#f8f9fa;border-radius:16px;cursor:pointer;transition:.15s}
   .check-item:hover{border-color:var(--primary);background:#eaf3fe}
@@ -155,16 +153,13 @@
 
         <!-- AGENTS PAGE -->
         <section id="agents" class="page active">
-          <div class="agents-grid" id="agentsGrid">
-            <!-- cards injected -->
-          </div>
-
+          <div class="agents-grid" id="agentsGrid"></div>
           <div class="queue">
             <div class="top">
               <h3>📋 Agent Queue Management</h3>
               <div style="color:var(--muted);font-size:14px">Drag to reorder priority • Position 1 becomes <strong>Top Sales</strong></div>
             </div>
-            <div id="queueList"><!-- items injected --></div>
+            <div id="queueList"></div>
           </div>
         </section>
 
@@ -204,7 +199,7 @@
             <div class="conv-list">
               <h3 style="margin-bottom:10px">💬 Active Conversations</h3>
               <div style="color:var(--muted);font-size:14px;margin-bottom:10px">Click to manage</div>
-              <div id="convList"><!-- items injected --></div>
+              <div id="convList"></div>
             </div>
 
             <div class="sla-chat">
@@ -282,9 +277,9 @@ const agentProfiles = {
 let agentOrder = ['agent1','agent2','agent3','agent4','agent5']; // queue order (draggable)
 let topSalesId = 'agent1';
 
-let completedLeads = [];                      // for charts
-let ongoingLeads = [];                        // live panel
-let activeConversations = {};                 // id -> conversation
+let completedLeads = [];
+let ongoingLeads = [];
+let activeConversations = {};
 let agentConversations = {agent1:[],agent2:[],agent3:[],agent4:[],agent5:[]};
 let selectedConversationId = null;
 let nextLeadId = 2024006;
@@ -317,7 +312,7 @@ let alertConvId = null;
    DOM HELPERS
 =========================== */
 const $ = sel => document.querySelector(sel);
-const el = (tag, attrs={}) => Object.assign(document.createElement(tag), attrs);
+function el(tag, props={}){ const e=document.createElement(tag); Object.assign(e, props); return e; }
 
 /* ===========================
    NAVIGATION
@@ -331,8 +326,6 @@ function switchPage(page){
   const subs   = {agents:'Real-time agent monitoring and queue management', leads:'Lead scoring and progression tracking', chat:'AI-powered lead qualification system', sla:'Response time monitoring and escalation'};
   $('#pageTitle').textContent = titles[page];
   $('#pageSubtitle').textContent = subs[page];
-
-  // floating ALPS card visibility
   $('#alpsCard').style.display = (page==='chat') ? 'block' : 'none';
 }
 document.querySelectorAll('.nav-item').forEach(i=>i.addEventListener('click',()=>switchPage(i.dataset.page)));
@@ -344,7 +337,8 @@ function drawAgentCards(){
   const grid = $('#agentsGrid'); grid.innerHTML='';
   agentOrder.forEach((id, idx)=>{
     const a = agentProfiles[id];
-    const card = el('div',{className:`agent-card ${a.status} ${id===topSalesId?'top-sales':''}`,dataset:{agent:id}});
+    const card = el('div',{className:`agent-card ${a.status} ${id===topSalesId?'top-sales':''}`});
+    card.setAttribute('data-agent', id); /* set data attribute safely */
     const statusClass = a.status==='available'?'status-available':(a.status==='busy'?'status-busy':'status-away');
     card.innerHTML = `
       <div class="agent-header">
@@ -367,7 +361,8 @@ function drawAgentCards(){
 function drawQueue(){
   const q = $('#queueList'); q.innerHTML='';
   agentOrder.forEach((id,i)=>{
-    const row = el('div',{className:'queue-item',draggable:true,dataset:{agent:id}});
+    const row = el('div',{className:'queue-item', draggable:true});
+    row.setAttribute('data-agent', id);
     row.innerHTML = `<div style="display:flex;align-items:center;gap:14px"><span class="drag">≡</span><div><strong>${id===topSalesId?'👑 ':''}${agentProfiles[id].name}</strong> - ${id===topSalesId?'Top Sales':'Agent'}</div></div>
     <div>Position: ${i+1}</div>`;
     q.appendChild(row);
@@ -389,10 +384,8 @@ function makeQueueDraggable(){
     const rect = target.getBoundingClientRect();
     const before = e.clientY < rect.top + rect.height/2;
     list.insertBefore(dragItem, before?target:target.nextSibling);
-    // rebuild order
-    agentOrder = Array.from(list.children).map(n=>n.dataset.agent);
-    // update Top Sales automatically
-    topSalesId = agentOrder[0];
+    agentOrder = Array.from(list.children).map(n=>n.getAttribute('data-agent'));
+    topSalesId = agentOrder[0];              // auto Top Sales
     drawAgentCards(); drawQueue();
   });
 }
@@ -402,7 +395,8 @@ function makeQueueDraggable(){
 =========================== */
 function addLeadToPanel(lead){
   const list = $('#ongoingLeads');
-  const item = el('div',{className:'lead-item',dataset:{lead:lead.id}});
+  const item = el('div',{className:'lead-item'});
+  item.setAttribute('data-lead', lead.id);
   const cls = lead.score>=70?'hot':(lead.score>=40?'warm':'cold');
   const scoreCls = lead.score>=70?'score-hot':(lead.score>=40?'score-warm':'score-cold');
   item.classList.add(cls);
@@ -423,8 +417,7 @@ function addLeadToPanel(lead){
 let leadChart = null;
 function openLeadChart(lead){
   const mdl = $('#chartModal'); mdl.style.display='flex';
-  const title = $('#chartTitle'); title.textContent = `Lead ${lead.leadNumber} - Score Progression`;
-  // build fake progression from responses
+  $('#chartTitle').textContent = `Lead ${lead.leadNumber} - Score Progression`;
   const msgs = ['Start','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Final'];
   let s=0, arr=[0];
   questions.forEach(q=>{
@@ -600,7 +593,6 @@ function routeLeadToAgent(lead){
 
   drawAgentCards(); drawQueue(); drawConversationsList();
 
-  // Notify user
   chatAdd(`<div style="background:#e3f2fd;border-left:4px solid var(--primary);padding:12px;border-radius:10px"><strong>Routed!</strong> Assigned to: ${ag.name} (Lead ${lead.leadNumber}). Our agent will contact you soon.</div>`, 'system', true);
 }
 
@@ -640,10 +632,8 @@ function openSLAChat(id){
   const c = activeConversations[id]; if(!c) return;
   $('#slaChatTitle').textContent = `Lead ${c.leadNumber} - ${c.agentName}`;
   $('#slaChatSub').textContent   = `${c.area} • ALPS: ${c.score} • ${c.status==='waiting_agent_response'?'Waiting for agent response':'Ongoing'}`;
-  // header timer
   const t = timerText(c); const h = $('#slaHeaderTimer'); h.textContent=t.text; h.className = `sla-pill ${t.cls}`;
 
-  // messages
   const box = $('#slaMessages'); box.innerHTML='';
   c.messages.forEach(m=>box.appendChild(renderMsg(m)));
   box.scrollTop = box.scrollHeight;
@@ -666,13 +656,12 @@ function sendSlaMessage(){
 
   if(c.status==='waiting_agent_response'){ c.status='ongoing'; c.slaTimer={type:'ongoing',timeRemaining:600,alertTriggered:false,overdue:0,breached:false}; }
   else { c.slaTimer.timeRemaining=600; c.slaTimer.alertTriggered=false; c.slaTimer.overdue=0; }
-  drawConversationsList(); // refresh list immediately
+  drawConversationsList();
 
-  // simple auto customer response to keep activity moving
   setTimeout(()=>{
     const reply={type:'customer',text:"Thanks! I'm interested to view.", time:timeNow()};
     c.messages.push(reply); $('#slaMessages').appendChild(renderMsg(reply)); $('#slaMessages').scrollTop = $('#slaMessages').scrollHeight;
-    c.slaTimer.timeRemaining=600; // reset
+    c.slaTimer.timeRemaining=600;
   },2500);
 }
 $('#slaEscalate').addEventListener('click',()=>{
@@ -691,20 +680,14 @@ function tickSlaTimers(){
     if(t.timeRemaining>0){
       t.timeRemaining--;
       if(t.timeRemaining<=0){
-        if(t.type==='initial'){ // alert on 5-min initial timeout
-          triggerSlaAlert(c.id);
-        }else{ // ongoing idle breach
-          t.alertTriggered = true;
-          t.overdue = 1;
-          triggerSlaAlert(c.id);
-        }
+        if(t.type==='initial'){ triggerSlaAlert(c.id); }
+        else{ t.alertTriggered = true; t.overdue = 1; triggerSlaAlert(c.id); }
       }
     }else if(t.overdue>0 || t.alertTriggered){
       t.overdue++;
     }
   });
 
-  // Update SLA list + header timer if open
   drawConversationsList();
   if(selectedConversationId){
     const c=activeConversations[selectedConversationId];
@@ -713,7 +696,6 @@ function tickSlaTimers(){
     }
   }
 
-  // Update alert live timer
   if(alertConvId){
     const c=activeConversations[alertConvId]; if(c){
       $('#alertTime').textContent = fmtTimer(c.slaTimer.overdue || 0);
@@ -760,11 +742,9 @@ function reassignNextAgent(conv){
     conv.slaTimer.overdue++;
     return;
   }
-  // remove from old agent list
   agentConversations[conv.agentId] = agentConversations[conv.agentId].filter(x=>x.id!==conv.id);
   agentProfiles[conv.agentId].capacity = Math.max(0, agentProfiles[conv.agentId].capacity-1);
 
-  // assign new
   conv.agentId = next.id; conv.agentName=next.name; conv.status='waiting_agent_response';
   conv.slaTimer={type:'initial',timeRemaining:300,alertTriggered:false,overdue:0,breached:false};
   agentConversations[next.id].push(conv);
@@ -776,7 +756,7 @@ function reassignNextAgent(conv){
 }
 
 /* ===========================
-   AGENT FILTER IN SLA (left side)
+   AGENT FILTER IN SLA
 =========================== */
 function showAgentConversations(agentId){
   const list = $('#convList'); list.innerHTML='';
@@ -804,17 +784,9 @@ function showAgentConversations(agentId){
 /* ===========================
    INITIALIZATION
 =========================== */
-function initAgents(){
-  drawAgentCards(); drawQueue();
-}
-function initChat(){
-  chatStep=0; chatResponses={}; chatScore=0; updateAlpsCard();
-  const m = $('#chatMessages'); m.innerHTML='';
-  ask(0);
-}
-function initSla(){
-  drawConversationsList();
-}
+function initAgents(){ drawAgentCards(); drawQueue(); }
+function initChat(){ chatStep=0; chatResponses={}; chatScore=0; updateAlpsCard(); $('#chatMessages').innerHTML=''; ask(0); }
+function initSla(){ drawConversationsList(); }
 function updateClock(){ $('#lastUpdate').textContent = new Date().toLocaleTimeString(); }
 function timeNow(){ return new Date().toLocaleTimeString(); }
 
@@ -826,6 +798,7 @@ initAgents(); initChat(); initSla();
 </script>
 </body>
 </html>
+
 
 
 
