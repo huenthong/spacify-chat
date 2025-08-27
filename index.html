@@ -69,8 +69,6 @@
   .message-user{background:#DCF8C6;align-self:flex-end;border-bottom-right-radius:4px;margin-left:auto;box-shadow:0 1px 2px rgba(0,0,0,.08)}
   .message-system{background:#fff3cd!important;border:2px solid #ffeaa7!important;text-align:center!important;max-width:90%!important;margin:10px auto!important}
   .message-ai-takeover{background:#e3f2fd!important;border:2px solid #2196f3!important;text-align:center!important;max-width:90%!important;margin:10px auto!important}
-  .ai-message{background:#f0f8ff!important;border-left:4px solid #17a2b8!important}
-  .ai-message::before{content:"🤖 ";font-weight:bold;color:#17a2b8}
 
   .score-display{position:fixed;top:130px;right:20px;background:rgba(255,255,255,.98);padding:14px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:200px;z-index:1000}
   .score-bar{height:20px;background:#e0e0e0;border-radius:10px;overflow:hidden;margin:8px 0}
@@ -303,14 +301,13 @@
 
 /* ======= CONFIG ======= */
 const MODEL_SOURCE = 'server'; // Using server-side pickle model
-const SCORE_ENDPOINT = 'https://web-production-11d29.up.railway.app/api/score'; // Railway deployment URL
+const SCORE_ENDPOINT = 'https://web-production-11d29.up.railway.app/api/score'; // UPDATE THIS TO YOUR ACTUAL SERVER URL
 const LOW_SCORE_THRESHOLD = 35;
-const HIGH_SCORE_RECOVERY_THRESHOLD = 65;
-const INITIAL_RESPONSE_TIMEOUT = 300;
+const INITIAL_RESPONSE_TIMEOUT = 60;
 const DEBUG_MODE = false; // Disabled debug mode
 
-// Debug info is now disabled
-if (false) {
+// Enable debug info if in debug mode
+if (DEBUG_MODE) {
   document.getElementById('debugInfo').style.display = 'block';
 }
 
@@ -507,6 +504,12 @@ function clientSideHeuristicScore(features) {
 async function recomputeScoreFromFeatures(features) {
   if (MODEL_SOURCE === 'server') {
     try {
+      if (DEBUG_MODE) {
+        document.getElementById('lastApiCall').textContent = new Date().toLocaleTimeString();
+        document.getElementById('featuresSent').textContent = JSON.stringify(features).substring(0, 50) + '...';
+        document.getElementById('usingServer').textContent = 'Yes';
+      }
+      
       console.log('Calling server with features:', features);
       
       const response = await fetch(SCORE_ENDPOINT, {
@@ -525,10 +528,20 @@ async function recomputeScoreFromFeatures(features) {
       console.log('Server response:', data);
       
       const score = data.score || data.alps_score || 50;
+      
+      if (DEBUG_MODE) {
+        document.getElementById('scoreReceived').textContent = score;
+      }
+      
       return Math.max(0, Math.min(100, Math.round(score)));
       
     } catch (error) {
       console.error('Server scoring failed:', error);
+      
+      if (DEBUG_MODE) {
+        document.getElementById('usingServer').textContent = 'No (Fallback)';
+      }
+      
       // Fallback to client-side scoring
       return clientSideHeuristicScore(features);
     }
@@ -601,26 +614,13 @@ function syncAgentCapacitiesToConversations(){
   agentOrder.forEach(agentId=>{
     const card = document.querySelector(`.agent-card[data-agent="${agentId}"]`);
     if(!card) return;
-    const conversations = agentConversations[agentId];
-    
-    // Count full-capacity conversations (not AI-handled)
-    const fullCapacityCount = conversations.filter(c => !c.aiHandled).length;
-    const aiAssistedCount = conversations.filter(c => c.aiHandled).length;
-    const totalCount = conversations.length;
-    
+    const count = agentConversations[agentId].length;
     const bar = card.querySelector('.capacity-fill');
     const txt = card.querySelector('.capacity-text');
-    
-    // Use full capacity count for capacity calculation
-    const pct = Math.min(100, (fullCapacityCount/10)*100);
+    const pct = Math.min(100, (count/10)*100);
     bar.style.width = pct+'%';
     bar.className = 'capacity-fill ' + (pct<=30?'capacity-low':pct<=70?'capacity-medium':'capacity-high');
-    
-    if (aiAssistedCount > 0) {
-      txt.textContent = `Active: ${fullCapacityCount}/10 • AI Assisted: ${aiAssistedCount}`;
-    } else {
-      txt.textContent = `Capacity: ${fullCapacityCount}/10 chats`;
-    }
+    txt.textContent = `Capacity: ${count}/10 chats`;
   });
 }
 
@@ -1051,11 +1051,9 @@ function sendSLAMessage(){
       conv.score = newScore;
       conv.slaTimer.timeRemaining = 600;
       
-      // Check if AI should take over based on score
+      // Check if AI should take over
       if(newScore < LOW_SCORE_THRESHOLD && conv.status !== 'ai_takeover'){
-        setTimeout(() => {
-          triggerAITakeover(conv);
-        }, 2000);
+        setTimeout(() => aiTakeoverConversation(conv), 2000);
       }
       
       updateConversationListItem(conv.id);
@@ -1094,316 +1092,50 @@ function calculateScoreFromResponse(response, currentScore){
   return Math.max(5, Math.min(100, currentScore + scoreChange));
 }
 
-function triggerAITakeover(conv){
-  // Mark conversation as AI-assisted but keep agent attached for monitoring
-  conv.status = 'ai_assisted';
-  conv.aiActive = true;
-  conv.originalAgentId = conv.agentId;
-  conv.originalAgentName = conv.agentName;
+function aiTakeoverConversation(conv){
+  conv.status = 'ai_takeover';
+  conv.previousAgentId = conv.agentId;
+  conv.previousAgentName = conv.agentName;
+  conv.agentName = 'AI Assistant';
   
-  // Don't remove from agent list - agent can still monitor
-  // But mark it as AI-handled for capacity calculation
-  conv.aiHandled = true;
+  // Remove from agent's conversation list to free capacity
+  const agentConvs = agentConversations[conv.agentId];
+  const index = agentConvs.findIndex(c => c.id === conv.id);
+  if(index !== -1) {
+    agentConvs.splice(index, 1);
+  }
   
   // Add AI takeover message
-  const aiTakeoverMessage = {
+  const aiMessage = {
     type: 'system',
-    text: `🤖 AI Assistant has joined this conversation due to low engagement score (${conv.score}). The AI will assist while ${conv.agentName} monitors the conversation. Agent capacity partially freed for high-priority leads.`,
+    text: `AI Assistant has taken over this conversation due to low engagement score (${conv.score}). Agent capacity freed.`,
     time: new Date().toLocaleTimeString()
   };
-  
-  conv.messages.push(aiTakeoverMessage);
+  conv.messages.push(aiMessage);
   
   // Update lead status in database
   const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
   if(leadIndex !== -1){
-    allLeadsDatabase[leadIndex].status = 'ai_assisted';
-    allLeadsDatabase[leadIndex].agent = `AI + ${conv.agentName}`;
+    allLeadsDatabase[leadIndex].status = 'ai_takeover';
+    allLeadsDatabase[leadIndex].agent = 'AI Assistant';
     allLeadsDatabase[leadIndex].score = conv.score;
   }
   
-  // If conversation is currently open, show the takeover message
+  // If conversation is currently open, refresh it
   if(selectedConversation === conv.id) {
     const box = document.getElementById('slaMessages');
     const div = document.createElement('div');
     div.className = 'message message-ai-takeover';
-    div.innerHTML = `<div>${aiTakeoverMessage.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${aiTakeoverMessage.time}</div>`;
+    div.innerHTML = `<div>${aiMessage.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${aiMessage.time}</div>`;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
     
     loadActiveConversation(conv);
   }
   
-  showNotification(`AI takeover: Lead ${conv.leadNumber} (Score: ${conv.score}) - Agent can monitor conversation`, 'info');
-  
-  // Start AI auto-response cycle
-  setTimeout(() => {
-    provideAIResponse(conv);
-  }, 2000);
-  
+  showNotification(`AI takeover: Lead ${conv.leadNumber} (Score: ${conv.score})`, 'warning');
   refreshCurrentListView();
 }
-
-function provideAIResponse(conv) {
-  if (!conv.aiActive) return; // AI was deactivated
-  
-  const aiResponses = [
-    "I understand you have some concerns. Let me help address them and find a solution that works for you.",
-    "Thank you for your feedback. Perhaps we can explore some alternative options that better fit your needs.",
-    "I appreciate your honesty. Let me see how we can adjust our offering to better match your requirements.",
-    "That's valuable feedback. Would you like to discuss some different properties that might be more suitable?",
-    "I understand the pricing concern. Let me check if we have any promotions or flexible payment options available.",
-    "Let me provide you with some additional information that might help with your decision.",
-    "I'd be happy to show you some properties that better match your budget and preferences.",
-    "Would you like me to arrange a virtual tour of some properties in your preferred area?"
-  ];
-  
-  const response = aiResponses[Math.floor(Math.random() * aiResponses.length)];
-  const aiMessage = {
-    type: 'ai_agent',
-    text: response,
-    time: new Date().toLocaleTimeString(),
-    isAI: true
-  };
-  
-  conv.messages.push(aiMessage);
-  
-  if(selectedConversation === conv.id) {
-    const box = document.getElementById('slaMessages');
-    const div = document.createElement('div');
-    div.className = 'message message-bot ai-message';
-    div.innerHTML = `<div>🤖 AI: ${response}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${aiMessage.time}</div>`;
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-  }
-  
-  // Simulate customer response after AI message
-  setTimeout(() => {
-    if (!conv.aiActive) return;
-    simulateCustomerResponse(conv);
-  }, 3000 + Math.random() * 4000); // 3-7 seconds delay
-}
-
-function simulateCustomerResponse(conv) {
-  if (!conv.aiActive) return;
-  
-  const customerResponses = [
-    "Okay, that sounds reasonable",
-    "I'm still not convinced about the price",
-    "Can you show me cheaper options?",
-    "Actually, this looks interesting",
-    "I like what I'm hearing",
-    "Let me think about it",
-    "What other areas do you have?",
-    "The location seems good",
-    "I need something closer to my workplace",
-    "This is exactly what I was looking for!",
-    "The budget is still too high for me",
-    "Do you have any discounts available?"
-  ];
-  
-  const response = customerResponses[Math.floor(Math.random() * customerResponses.length)];
-  
-  // Calculate new score based on response
-  const newScore = calculateScoreFromAIResponse(response, conv.score);
-  
-  const customerMessage = {
-    type: 'customer',
-    text: response,
-    time: new Date().toLocaleTimeString(),
-    score: newScore
-  };
-  
-  conv.messages.push(customerMessage);
-  conv.score = newScore;
-  
-  if(selectedConversation === conv.id) {
-    const box = document.getElementById('slaMessages');
-    const div = document.createElement('div');
-    div.className = 'message message-user';
-    div.style.position = 'relative';
-    div.innerHTML = `<div>${response}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${customerMessage.time}</div>`;
-    
-    // Add score badge
-    const scoreBadge = document.createElement('div');
-    scoreBadge.className = 'message-score';
-    scoreBadge.textContent = newScore;
-    div.appendChild(scoreBadge);
-    
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-  }
-  
-  updateConversationListItem(conv.id);
-  
-  // Check if score recovered enough for agent takeover
-  if (newScore >= HIGH_SCORE_RECOVERY_THRESHOLD) {
-    triggerAgentRecovery(conv);
-    return;
-  }
-  
-  // Continue AI conversation if score is still low
-  setTimeout(() => {
-    if (conv.aiActive) {
-      provideAIResponse(conv);
-    }
-  }, 2000 + Math.random() * 3000); // 2-5 seconds delay
-}
-
-function calculateScoreFromAIResponse(response, currentScore) {
-  const positiveKeywords = ["good", "interesting", "like", "exactly", "reasonable", "sounds good"];
-  const negativeKeywords = ["not convinced", "too high", "expensive", "budget", "cheap", "discount"];
-  const neutralKeywords = ["think about", "let me", "other", "what", "can you"];
-  
-  let scoreChange = 0;
-  const lowerResponse = response.toLowerCase();
-  
-  // Check for positive responses
-  if (positiveKeywords.some(keyword => lowerResponse.includes(keyword))) {
-    scoreChange = Math.floor(Math.random() * 15) + 5; // +5 to +20
-  }
-  // Check for negative responses
-  else if (negativeKeywords.some(keyword => lowerResponse.includes(keyword))) {
-    scoreChange = -Math.floor(Math.random() * 10) - 5; // -5 to -15
-  }
-  // Neutral responses
-  else if (neutralKeywords.some(keyword => lowerResponse.includes(keyword))) {
-    scoreChange = Math.floor(Math.random() * 6) - 3; // -3 to +3
-  }
-  // Default small positive change (AI is helping)
-  else {
-    scoreChange = Math.floor(Math.random() * 8) - 2; // -2 to +6
-  }
-  
-  return Math.max(5, Math.min(100, currentScore + scoreChange));
-}
-
-function triggerAgentRecovery(conv) {
-  // Stop AI responses
-  conv.aiActive = false;
-  conv.status = 'agent_recovery_pending';
-  conv.aiHandled = false; // Return full capacity to agent
-  
-  // Add system message about score recovery
-  const recoveryMessage = {
-    type: 'system',
-    text: `✅ ALPS Score recovered to ${conv.score}! Agent takeover recommended. The customer is now showing higher engagement.`,
-    time: new Date().toLocaleTimeString()
-  };
-  
-  conv.messages.push(recoveryMessage);
-  
-  // Show recovery message in chat if open
-  if(selectedConversation === conv.id) {
-    const box = document.getElementById('slaMessages');
-    const div = document.createElement('div');
-    div.className = 'message message-system';
-    div.style.background = '#d4edda';
-    div.style.borderLeft = '4px solid #28a745';
-    div.innerHTML = `<div>${recoveryMessage.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${recoveryMessage.time}</div>`;
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-  }
-  
-  // Show alert to agent
-  showAgentRecoveryAlert(conv);
-  
-  // Update lead status
-  const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
-  if(leadIndex !== -1){
-    allLeadsDatabase[leadIndex].status = 'recovery_pending';
-    allLeadsDatabase[leadIndex].agent = conv.originalAgentName;
-    allLeadsDatabase[leadIndex].score = conv.score;
-  }
-  
-  refreshCurrentListView();
-}
-
-function showAgentRecoveryAlert(conv) {
-  // Create recovery alert
-  const alertDiv = document.createElement('div');
-  alertDiv.id = 'recoveryAlert';
-  alertDiv.className = 'sla-alert';
-  alertDiv.style.display = 'block';
-  alertDiv.style.borderLeft = '5px solid #28a745';
-  alertDiv.innerHTML = `
-    <h3>🚀 LEAD SCORE RECOVERED!</h3>
-    <p>The customer is now showing high engagement and ready for agent interaction.</p>
-    <div style="margin:12px 0;padding:12px;background:#d4edda;border-radius:8px">
-      <strong>Lead:</strong> ${conv.leadNumber}<br/>
-      <strong>Agent:</strong> ${conv.originalAgentName}<br/>
-      <strong>New Score:</strong> ${conv.score}/100<br/>
-      <strong>Status:</strong> Ready for agent takeover
-    </div>
-    <div class="alert-actions">
-      <button class="btn btn-primary" onclick="resumeAgentControl('${conv.id}')">Take Over Conversation</button>
-      <button class="btn" onclick="dismissRecoveryAlert()" style="background:#6c757d;color:white">Continue AI Assistance</button>
-    </div>
-  `;
-  
-  document.body.appendChild(alertDiv);
-  
-  // Auto-remove after 15 seconds if no action
-  setTimeout(() => {
-    if (document.getElementById('recoveryAlert')) {
-      dismissRecoveryAlert();
-    }
-  }, 15000);
-}
-
-function resumeAgentControl(convId) {
-  const conv = activeConversations[convId];
-  if (!conv) return;
-  
-  // Resume agent control
-  conv.status = 'waiting_agent_response';
-  conv.aiActive = false;
-  conv.aiHandled = false;
-  
-  // Restart SLA timer
-  conv.slaTimer = {
-    type: 'ongoing', 
-    timeRemaining: 600, // 10 minutes
-    alertTriggered: false, 
-    overdue: 0
-  };
-  
-  // Add agent resumption message
-  const resumeMessage = {
-    type: 'system',
-    text: `👤 ${conv.originalAgentName} has resumed control of this conversation. AI assistance ended. SLA timer restarted.`,
-    time: new Date().toLocaleTimeString()
-  };
-  
-  conv.messages.push(resumeMessage);
-  
-  if(selectedConversation === conv.id) {
-    const box = document.getElementById('slaMessages');
-    const div = document.createElement('div');
-    div.className = 'message message-system';
-    div.style.background = '#cce5ff';
-    div.style.borderLeft = '4px solid #007bff';
-    div.innerHTML = `<div>${resumeMessage.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${resumeMessage.time}</div>`;
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-  }
-  
-  dismissRecoveryAlert();
-  showNotification(`Agent resumed control: Lead ${conv.leadNumber} (Score: ${conv.score})`, 'success');
-  refreshCurrentListView();
-}
-
-function dismissRecoveryAlert() {
-  const alert = document.getElementById('recoveryAlert');
-  if (alert) {
-    alert.remove();
-  }
-}
-function aiTakeoverConversation(conv){
-  // This is the original function - now calls the new trigger function
-  triggerAITakeover(conv);
-}
-
 
 function reassignToNextAgent(conv){
   const next = getNextAvailableAgent();
@@ -1458,10 +1190,8 @@ function getConversationClass(conv){
 
 function getConversationStatus(conv){
   if(!conv.slaTimer) return {status:'Active', color:'#2ecc71'};
-  if(conv.status === 'ai_assisted') return {status:'🤖 AI Assisted', color:'#17a2b8'};
-  if(conv.status === 'agent_recovery_pending') return {status:'🚀 Recovery Ready', color:'#28a745'};
   if(conv.status === 'waiting_agent_response') return {status:'Waiting', color:'#f39c12'};
-  if(conv.status === 'ai_takeover') return {status:'🤖 AI Handling', color:'#3498db'};
+  if(conv.status === 'ai_takeover') return {status:'AI Handling', color:'#3498db'};
   if(conv.slaTimer.overdue > 0) return {status:'Breach', color:'#e74c3c'};
   if(conv.slaTimer.alertTriggered) return {status:'Alert', color:'#f39c12'};
   return {status:'Active', color:'#2ecc71'};
