@@ -283,7 +283,7 @@
 
 /* ======= CONFIG ======= */
 const MODEL_SOURCE = 'server'; // Using server-side pickle model
-const SCORE_ENDPOINT = 'https://web-production-11d29.up.railway.app/api/score'; // Replace with your Heroku app URL
+const SCORE_ENDPOINT = 'https://your-app-name.herokuapp.com/api/score'; // Replace with your Heroku app URL
 const LOW_SCORE_THRESHOLD = 30;
 const INITIAL_RESPONSE_TIMEOUT = 300;
 
@@ -1494,14 +1494,26 @@ function getPropertiesForArea(area){
 
 function recomputeScoreFromFeatures(features){
   if(MODEL_SOURCE === 'server'){
+    console.log('Sending features to server:', features); // Debug log
     return fetch(SCORE_ENDPOINT, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(features)
     })
-    .then(r => r.json())
-    .then(d => Number(d.score) || 0)
-    .catch(() => heuristicScore(features));
+    .then(r => {
+      if (!r.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return r.json();
+    })
+    .then(d => {
+      console.log('Received score:', d); // Debug log
+      return Number(d.score) || 50;
+    })
+    .catch(error => {
+      console.error('Error calling API:', error);
+      return heuristicScore(features); // Fallback
+    });
   }
   return Promise.resolve(heuristicScore(features));
 }
