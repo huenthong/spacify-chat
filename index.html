@@ -282,10 +282,217 @@
 'use strict';
 
 /* ======= CONFIG ======= */
-const MODEL_SOURCE = 'server'; // Changed to server for pickle model
-const SCORE_ENDPOINT = '/api/score'; // Your API endpoint for pickle model
-const LOW_SCORE_THRESHOLD = 30; // AI takes over below this score
-const INITIAL_RESPONSE_TIMEOUT = 300; // 5 minutes in seconds
+const MODEL_SOURCE = 'server'; // Using server-side pickle model
+const SCORE_ENDPOINT = 'https://web-production-11d29.up.railway.app/api/score'; // Replace with your Heroku app URL
+const LOW_SCORE_THRESHOLD = 30;
+const INITIAL_RESPONSE_TIMEOUT = 300;
+
+// Random Forest Model Weights (based on your feature importance)
+const MODEL_WEIGHTS = {
+  // Top features with their importance scores
+  initial_contact_date: 0.380348,
+  move_in_date: 0.165708,
+  contact_hour: 0.105576,
+  rental_proposed: 0.074638,
+  customer_journey_unknown: 0.038706,
+  nationality_standard: 0.037654,
+  no_of_pax: 0.030717,
+  is_business_hours: 0.030683,
+  contact_wednesday: 0.030378,
+  budget_category: 0.018691,
+  contact_monday: 0.017803,
+  budget: 0.016609,
+  move_urgency: 0.014629,
+  is_weekend: 0.010283,
+  contact_month: 0.007865
+};
+
+// Encoding mappings (adjust based on your training data)
+const ENCODINGS = {
+  nationality: {
+    'Malaysian': 1,
+    'Singaporean': 2,
+    'Indonesian': 3,
+    'Filipino': 4,
+    'Indian': 5,
+    'Chinese': 6,
+    'Others': 7
+  },
+  budget_category: {
+    'low': 1,        // < 600
+    'medium': 2,     // 600-1000  
+    'high': 3,       // 1000-1500
+    'premium': 4     // > 1500
+  },
+  pax_mapping: {
+    '1 person': 1,
+    '2 people': 2,
+    'More than 2': 3
+  },
+  urgency_mapping: {
+    'immediate': 1,    // <= 7 days
+    'soon': 2,         // 8-30 days
+    'flexible': 3      // > 30 days
+  }
+};
+
+// Helper functions for feature engineering
+function getContactHour() {
+  return new Date().getHours();
+}
+
+function isBusinessHours(hour = null) {
+  const h = hour || getContactHour();
+  return h >= 9 && h <= 17 ? 1 : 0;
+}
+
+function isWeekend() {
+  const day = new Date().getDay();
+  return (day === 0 || day === 6) ? 1 : 0;
+}
+
+function getContactDay() {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return days[new Date().getDay()];
+}
+
+function getBudgetCategory(budget) {
+  const b = parseInt(budget) || 0;
+  if (b < 600) return 'low';
+  if (b <= 1000) return 'medium';
+  if (b <= 1500) return 'high';
+  return 'premium';
+}
+
+function getMoveUrgency(moveInDate) {
+  if (!moveInDate) return 'flexible';
+  const moveDate = new Date(moveInDate);
+  const today = new Date();
+  const diffDays = Math.ceil((moveDate - today) / (1000 * 60 * 60 * 24));
+  
+  if (diffDays <= 7) return 'immediate';
+  if (diffDays <= 30) return 'soon';
+  return 'flexible';
+}
+
+function calculateDaysDifference(date1, date2 = new Date()) {
+  const diff = Math.abs(new Date(date1) - date2);
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+// Main Random Forest scoring function
+function randomForestScore(features) {
+  let totalScore = 0;
+  const currentDate = new Date();
+  const contactHour = getContactHour();
+  const contactDay = getContactDay();
+  const contactMonth = currentDate.getMonth() + 1;
+  
+  // Feature: Initial Contact Date (most important - 38.03%)
+  const contactDateScore = 50; // Base score for immediate contact
+  totalScore += contactDateScore * MODEL_WEIGHTS.initial_contact_date;
+  
+  // Feature: Move in Date (16.57%)
+  if (features.movein) {
+    const moveUrgency = getMoveUrgency(features.movein);
+    const urgencyScore = ENCODINGS.urgency_mapping[moveUrgency] || 2;
+    const moveDateScore = (4 - urgencyScore) * 25; // Higher urgency = higher score
+    totalScore += moveDateScore * MODEL_WEIGHTS.move_in_date;
+  }
+  
+  // Feature: Contact Hour (10.56%)
+  const hourScore = isBusinessHours(contactHour) ? 80 : 40;
+  totalScore += hourScore * MODEL_WEIGHTS.contact_hour;
+  
+  // Feature: Rental Proposed / Budget (7.46%)
+  if (features.budget) {
+    const budget = parseInt(features.budget) || 0;
+    const budgetScore = Math.min(100, (budget / 2000) * 100); // Normalize to 0-100
+    totalScore += budgetScore * MODEL_WEIGHTS.rental_proposed;
+  }
+  
+  // Feature: Customer Journey Unknown (3.87%)
+  // This represents how much information we have
+  const knownFields = Object.keys(features).filter(k => features[k]).length;
+  const journeyScore = Math.min(100, (knownFields / 12) * 100);
+  totalScore += journeyScore * MODEL_WEIGHTS.customer_journey_unknown;
+  
+  // Feature: Nationality (3.77%)
+  if (features.nationality) {
+    const natScore = ENCODINGS.nationality[features.nationality] || 7;
+    const nationalityScore = (8 - natScore) * 14.3; // Malaysian gets highest score
+    totalScore += nationalityScore * MODEL_WEIGHTS.nationality_standard;
+  }
+  
+  // Feature: Number of Pax (3.07%)
+  if (features.pax) {
+    const paxValue = ENCODINGS.pax_mapping[features.pax] || 1;
+    const paxScore = (4 - paxValue) * 33.3; // 1 person gets highest score
+    totalScore += paxScore * MODEL_WEIGHTS.no_of_pax;
+  }
+  
+  // Feature: Is Business Hours (3.07%)
+  const businessHoursScore = isBusinessHours() ? 100 : 20;
+  totalScore += businessHoursScore * MODEL_WEIGHTS.is_business_hours;
+  
+  // Feature: Contact Day Wednesday (3.04%)
+  if (contactDay === 'Wednesday') {
+    totalScore += 100 * MODEL_WEIGHTS.contact_wednesday;
+  }
+  
+  // Feature: Budget Category (1.87%)
+  if (features.budget) {
+    const category = getBudgetCategory(features.budget);
+    const categoryScore = ENCODINGS.budget_category[category] * 25;
+    totalScore += categoryScore * MODEL_WEIGHTS.budget_category;
+  }
+  
+  // Feature: Contact Monday (1.78%)
+  if (contactDay === 'Monday') {
+    totalScore += 100 * MODEL_WEIGHTS.contact_monday;
+  }
+  
+  // Feature: Raw Budget (1.66%)
+  if (features.budget) {
+    const budgetNormalized = Math.min(100, (parseInt(features.budget) / 3000) * 100);
+    totalScore += budgetNormalized * MODEL_WEIGHTS.budget;
+  }
+  
+  // Feature: Move Urgency (1.46%)
+  if (features.movein) {
+    const urgency = getMoveUrgency(features.movein);
+    const urgencyScore = ENCODINGS.urgency_mapping[urgency];
+    totalScore += urgencyScore * 25 * MODEL_WEIGHTS.move_urgency;
+  }
+  
+  // Feature: Is Weekend (1.03%)
+  const weekendScore = isWeekend() ? 30 : 70; // Weekdays are better for business
+  totalScore += weekendScore * MODEL_WEIGHTS.is_weekend;
+  
+  // Feature: Contact Month (0.79%)
+  const monthScore = (contactMonth / 12) * 100;
+  totalScore += monthScore * MODEL_WEIGHTS.contact_month;
+  
+  // Additional factors from other form fields
+  if (features.area) totalScore += 5;
+  if (features.property) totalScore += 3;
+  if (features.workplace) totalScore += 4;
+  if (features.car === 'Yes') totalScore += 2;
+  if (features.parking === 'Yes') totalScore += 2;
+  
+  // Normalize to 0-100 range
+  return Math.max(0, Math.min(100, Math.round(totalScore)));
+}
+
+// Updated scoring function
+function recomputeScoreFromFeatures(features){
+  return Promise.resolve(randomForestScore(features));
+}
+
+// Updated heuristic score to use Random Forest
+function heuristicScore(features){
+  return randomForestScore(features);
+}
 
 /* ======= GLOBAL STATE ======= */
 let currentPage = 'agents';
@@ -1540,7 +1747,6 @@ function goToAgentConversations(agentId){
 </script>
 </body>
 </html>
-
 
 
 
