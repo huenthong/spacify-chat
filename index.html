@@ -81,8 +81,9 @@
   .conversation-item.sla-warning{border-left-color:#f39c12;background:#fff8e1}
   .conversation-item.sla-breach{border-left-color:#e74c3c;background:#ffebee}
   .sla-timer{display:flex;gap:10px;align-items:center;margin-top:8px}
-  .timer-negative{background:#f39c12;color:#fff;padding:5px 10px;border-radius:14px;font-weight:800}
-  .timer-positive{background:#e74c3c;color:#fff;padding:5px 10px;border-radius:14px;font-weight:800}
+  .timer-badge{padding:5px 10px;border-radius:14px;font-weight:800;font-size:12px}
+  .timer-negative{background:#f39c12;color:#fff}
+  .timer-positive{background:#e74c3c;color:#fff}
   .sla-chat-area{background:#fff;border-radius:15px;box-shadow:0 4px 14px rgba(0,0,0,.08);display:flex;flex-direction:column}
   .sla-chat-header{background:#34495e;color:#fff;padding:18px;border-radius:15px 15px 0 0;display:flex;justify-content:space-between;align-items:center}
   .sla-messages{flex:1;overflow-y:auto;padding:18px;background:#f8f9fa}
@@ -91,35 +92,44 @@
   .sla-input button{padding:12px 18px;border:none;border-radius:22px;color:#fff;background:#25D366;cursor:pointer}
 
   .options-container{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-  .option-button{padding:10px 14px;background:#f0f0f0;border:2px solid #e0e0e0;border-radius:20px;cursor:pointer;text-align:center}
+  .option-button{padding:10px 14px;background:#f0f0f0;border:2px solid #e0e0e0;border-radius:20px;cursor:pointer;text-align:center;transition:.2s}
   .option-button:hover{background:#25D366;color:#fff;border-color:#25D366}
   .property-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px}
-  .property-item{padding:12px;background:#f8f9fa;border:2px solid #e9ecef;border-radius:12px;text-align:center;cursor:pointer}
+  .property-item{padding:12px;background:#f8f9fa;border:2px solid #e9ecef;border-radius:12px;text-align:center;cursor:pointer;transition:.2s}
   .property-item:hover{background:#25D366;color:#fff;border-color:#25D366}
-  .input-field{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:20px;margin-top:10px}
+  .input-field{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:20px;margin-top:10px;outline:none}
+  .input-field:focus{border-color:#25D366}
   .typing-indicator{display:none;background:#fff;padding:14px;border-radius:18px;max-width:70%;border-bottom-left-radius:4px}
   .typing-dots{display:flex;gap:4px}.typing-dot{width:8px;height:8px;background:#999;border-radius:50%;animation:typing 1.4s infinite}
   .typing-dot:nth-child(2){animation-delay:.2s}.typing-dot:nth-child(3){animation-delay:.4s}
   @keyframes typing{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-8px)}}
 
   .checkbox-group{margin-top:10px}
-  .checkbox-item{display:flex;align-items:center;gap:8px;padding:8px;margin:4px 0;border-radius:8px;cursor:pointer}
+  .checkbox-item{display:flex;align-items:center;gap:8px;padding:8px;margin:4px 0;border-radius:8px;cursor:pointer;transition:.2s}
   .checkbox-item:hover,.checkbox-item.selected{background:#e8f5e8}
   .checkbox-item input{margin:0}
   .continue-btn{margin-top:10px;padding:10px 20px;background:#25D366;color:#fff;border:none;border-radius:20px;cursor:pointer}
+  .continue-btn:hover{background:#1ea952}
 
   .modal{display:none;position:fixed;z-index:1000;inset:0;background:rgba(0,0,0,.5)}
   .modal-content{background:#fff;margin:5% auto;padding:24px;border-radius:14px;width:80%;max-width:820px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
   .close{float:right;font-size:26px;cursor:pointer;color:#666}
-  .btn{padding:10px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:700}
-  .btn-primary{background:#3498db;color:#fff}.btn-danger{background:#e74c3c;color:#fff}
+  .close:hover{color:#333}
+  .btn{padding:10px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:700;transition:.2s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-primary{background:#3498db;color:#fff}.btn-primary:hover{background:#2980b9}
+  .btn-danger{background:#e74c3c;color:#fff}.btn-danger:hover{background:#c0392b}
 
-  .sla-alert{position:fixed;z-index:1100;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:26px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;border-left:5px solid #e74c3c}
+  .sla-alert{position:fixed;z-index:1100;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:26px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;border-left:5px solid #e74c3c;max-width:500px}
   .alert-actions{display:flex;gap:12px;margin-top:16px;justify-content:center}
 
   .live-score-badge{position:absolute;top:5px;right:5px;background:#3498db;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
 
   .message-score{position:absolute;top:5px;right:5px;background:rgba(52,152,219,.1);border:1px solid #3498db;color:#3498db;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:700}
+
+  .debug-info{position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.8);color:white;padding:10px;border-radius:8px;font-family:monospace;font-size:12px;max-width:300px;z-index:1000}
+
+  .status-indicator{font-size:12px;font-weight:600}
 
   @media(max-width:900px){
     .leads-container{grid-template-columns:1fr}
@@ -253,6 +263,14 @@
   <div id="chatScoreCategory">Getting Started</div>
 </div>
 
+<!-- Debug Info -->
+<div class="debug-info" id="debugInfo" style="display:none">
+  <div>Last API Call: <span id="lastApiCall">None</span></div>
+  <div>Features Sent: <span id="featuresSent">None</span></div>
+  <div>Score Received: <span id="scoreReceived">None</span></div>
+  <div>Using Server: <span id="usingServer">No</span></div>
+</div>
+
 <!-- Lead Chart Modal -->
 <div id="chartModal" class="modal">
   <div class="modal-content">
@@ -283,215 +301,14 @@
 
 /* ======= CONFIG ======= */
 const MODEL_SOURCE = 'server'; // Using server-side pickle model
-const SCORE_ENDPOINT = 'https://your-app-name.herokuapp.com/api/score'; // Replace with your Heroku app URL
+const SCORE_ENDPOINT = 'http://localhost:5000/api/score'; // UPDATE THIS TO YOUR ACTUAL SERVER URL
 const LOW_SCORE_THRESHOLD = 30;
 const INITIAL_RESPONSE_TIMEOUT = 300;
+const DEBUG_MODE = true; // Set to false in production
 
-// Random Forest Model Weights (based on your feature importance)
-const MODEL_WEIGHTS = {
-  // Top features with their importance scores
-  initial_contact_date: 0.380348,
-  move_in_date: 0.165708,
-  contact_hour: 0.105576,
-  rental_proposed: 0.074638,
-  customer_journey_unknown: 0.038706,
-  nationality_standard: 0.037654,
-  no_of_pax: 0.030717,
-  is_business_hours: 0.030683,
-  contact_wednesday: 0.030378,
-  budget_category: 0.018691,
-  contact_monday: 0.017803,
-  budget: 0.016609,
-  move_urgency: 0.014629,
-  is_weekend: 0.010283,
-  contact_month: 0.007865
-};
-
-// Encoding mappings (adjust based on your training data)
-const ENCODINGS = {
-  nationality: {
-    'Malaysian': 1,
-    'Singaporean': 2,
-    'Indonesian': 3,
-    'Filipino': 4,
-    'Indian': 5,
-    'Chinese': 6,
-    'Others': 7
-  },
-  budget_category: {
-    'low': 1,        // < 600
-    'medium': 2,     // 600-1000  
-    'high': 3,       // 1000-1500
-    'premium': 4     // > 1500
-  },
-  pax_mapping: {
-    '1 person': 1,
-    '2 people': 2,
-    'More than 2': 3
-  },
-  urgency_mapping: {
-    'immediate': 1,    // <= 7 days
-    'soon': 2,         // 8-30 days
-    'flexible': 3      // > 30 days
-  }
-};
-
-// Helper functions for feature engineering
-function getContactHour() {
-  return new Date().getHours();
-}
-
-function isBusinessHours(hour = null) {
-  const h = hour || getContactHour();
-  return h >= 9 && h <= 17 ? 1 : 0;
-}
-
-function isWeekend() {
-  const day = new Date().getDay();
-  return (day === 0 || day === 6) ? 1 : 0;
-}
-
-function getContactDay() {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return days[new Date().getDay()];
-}
-
-function getBudgetCategory(budget) {
-  const b = parseInt(budget) || 0;
-  if (b < 600) return 'low';
-  if (b <= 1000) return 'medium';
-  if (b <= 1500) return 'high';
-  return 'premium';
-}
-
-function getMoveUrgency(moveInDate) {
-  if (!moveInDate) return 'flexible';
-  const moveDate = new Date(moveInDate);
-  const today = new Date();
-  const diffDays = Math.ceil((moveDate - today) / (1000 * 60 * 60 * 24));
-  
-  if (diffDays <= 7) return 'immediate';
-  if (diffDays <= 30) return 'soon';
-  return 'flexible';
-}
-
-function calculateDaysDifference(date1, date2 = new Date()) {
-  const diff = Math.abs(new Date(date1) - date2);
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-// Main Random Forest scoring function
-function randomForestScore(features) {
-  let totalScore = 0;
-  const currentDate = new Date();
-  const contactHour = getContactHour();
-  const contactDay = getContactDay();
-  const contactMonth = currentDate.getMonth() + 1;
-  
-  // Feature: Initial Contact Date (most important - 38.03%)
-  const contactDateScore = 50; // Base score for immediate contact
-  totalScore += contactDateScore * MODEL_WEIGHTS.initial_contact_date;
-  
-  // Feature: Move in Date (16.57%)
-  if (features.movein) {
-    const moveUrgency = getMoveUrgency(features.movein);
-    const urgencyScore = ENCODINGS.urgency_mapping[moveUrgency] || 2;
-    const moveDateScore = (4 - urgencyScore) * 25; // Higher urgency = higher score
-    totalScore += moveDateScore * MODEL_WEIGHTS.move_in_date;
-  }
-  
-  // Feature: Contact Hour (10.56%)
-  const hourScore = isBusinessHours(contactHour) ? 80 : 40;
-  totalScore += hourScore * MODEL_WEIGHTS.contact_hour;
-  
-  // Feature: Rental Proposed / Budget (7.46%)
-  if (features.budget) {
-    const budget = parseInt(features.budget) || 0;
-    const budgetScore = Math.min(100, (budget / 2000) * 100); // Normalize to 0-100
-    totalScore += budgetScore * MODEL_WEIGHTS.rental_proposed;
-  }
-  
-  // Feature: Customer Journey Unknown (3.87%)
-  // This represents how much information we have
-  const knownFields = Object.keys(features).filter(k => features[k]).length;
-  const journeyScore = Math.min(100, (knownFields / 12) * 100);
-  totalScore += journeyScore * MODEL_WEIGHTS.customer_journey_unknown;
-  
-  // Feature: Nationality (3.77%)
-  if (features.nationality) {
-    const natScore = ENCODINGS.nationality[features.nationality] || 7;
-    const nationalityScore = (8 - natScore) * 14.3; // Malaysian gets highest score
-    totalScore += nationalityScore * MODEL_WEIGHTS.nationality_standard;
-  }
-  
-  // Feature: Number of Pax (3.07%)
-  if (features.pax) {
-    const paxValue = ENCODINGS.pax_mapping[features.pax] || 1;
-    const paxScore = (4 - paxValue) * 33.3; // 1 person gets highest score
-    totalScore += paxScore * MODEL_WEIGHTS.no_of_pax;
-  }
-  
-  // Feature: Is Business Hours (3.07%)
-  const businessHoursScore = isBusinessHours() ? 100 : 20;
-  totalScore += businessHoursScore * MODEL_WEIGHTS.is_business_hours;
-  
-  // Feature: Contact Day Wednesday (3.04%)
-  if (contactDay === 'Wednesday') {
-    totalScore += 100 * MODEL_WEIGHTS.contact_wednesday;
-  }
-  
-  // Feature: Budget Category (1.87%)
-  if (features.budget) {
-    const category = getBudgetCategory(features.budget);
-    const categoryScore = ENCODINGS.budget_category[category] * 25;
-    totalScore += categoryScore * MODEL_WEIGHTS.budget_category;
-  }
-  
-  // Feature: Contact Monday (1.78%)
-  if (contactDay === 'Monday') {
-    totalScore += 100 * MODEL_WEIGHTS.contact_monday;
-  }
-  
-  // Feature: Raw Budget (1.66%)
-  if (features.budget) {
-    const budgetNormalized = Math.min(100, (parseInt(features.budget) / 3000) * 100);
-    totalScore += budgetNormalized * MODEL_WEIGHTS.budget;
-  }
-  
-  // Feature: Move Urgency (1.46%)
-  if (features.movein) {
-    const urgency = getMoveUrgency(features.movein);
-    const urgencyScore = ENCODINGS.urgency_mapping[urgency];
-    totalScore += urgencyScore * 25 * MODEL_WEIGHTS.move_urgency;
-  }
-  
-  // Feature: Is Weekend (1.03%)
-  const weekendScore = isWeekend() ? 30 : 70; // Weekdays are better for business
-  totalScore += weekendScore * MODEL_WEIGHTS.is_weekend;
-  
-  // Feature: Contact Month (0.79%)
-  const monthScore = (contactMonth / 12) * 100;
-  totalScore += monthScore * MODEL_WEIGHTS.contact_month;
-  
-  // Additional factors from other form fields
-  if (features.area) totalScore += 5;
-  if (features.property) totalScore += 3;
-  if (features.workplace) totalScore += 4;
-  if (features.car === 'Yes') totalScore += 2;
-  if (features.parking === 'Yes') totalScore += 2;
-  
-  // Normalize to 0-100 range
-  return Math.max(0, Math.min(100, Math.round(totalScore)));
-}
-
-// Updated scoring function
-function recomputeScoreFromFeatures(features){
-  return Promise.resolve(randomForestScore(features));
-}
-
-// Updated heuristic score to use Random Forest
-function heuristicScore(features){
-  return randomForestScore(features);
+// Enable debug info if in debug mode
+if (DEBUG_MODE) {
+  document.getElementById('debugInfo').style.display = 'block';
 }
 
 /* ======= GLOBAL STATE ======= */
@@ -502,7 +319,7 @@ let lastAlertConvId = null;
 
 let leadChart = null;
 let realTimeInterval;
-let nextAgentIndex = 0; // Round robin counter
+let nextAgentIndex = 0;
 
 const agentOrder = ['agent1','agent2','agent3','agent4','agent5'];
 const AGENTS = {
@@ -524,7 +341,7 @@ const legacySLAs = {
 
 let nextLeadId = 2024010;
 let completedLeads = [];
-let allLeadsDatabase = []; // Store all leads for Lead Management page
+let allLeadsDatabase = [];
 
 // Chat state
 let chatCurrentStep = 0;
@@ -548,6 +365,195 @@ const questions = [
   {id:'workplace',text:'Where is your workplace? This helps us recommend the closest property.',type:'input',placeholder:'e.g., KLCC, Cyberjaya',weight:10},
   {id:'nationality',text:"What's your nationality?",type:'select',options:['Malaysian','Others'],weight:8}
 ];
+
+/* ======= SCORING FUNCTIONS ======= */
+
+// Improved client-side heuristic scoring
+function clientSideHeuristicScore(features) {
+  let score = 0;
+  
+  console.log('Using client-side scoring for features:', features);
+  
+  // Area selection (15 points)
+  if (features.area) {
+    score += 15;
+    // Bonus for high-demand areas
+    if (['KL/Selangor', 'Mont Kiara'].includes(features.area)) {
+      score += 5;
+    }
+  }
+  
+  // Property selection (10 points)
+  if (features.property) {
+    score += 10;
+  }
+  
+  // Budget (25 points max - most important factor)
+  if (features.budget) {
+    const budgetNum = parseInt(features.budget) || 0;
+    if (budgetNum >= 1200) {
+      score += 25; // Premium budget
+    } else if (budgetNum >= 900) {
+      score += 20; // High budget
+    } else if (budgetNum >= 600) {
+      score += 15; // Medium budget
+    } else if (budgetNum >= 400) {
+      score += 10; // Low budget
+    } else if (budgetNum > 0) {
+      score += 5; // Very low budget
+    }
+  }
+  
+  // Number of people (10 points)
+  if (features.pax) {
+    if (features.pax === '1 person') {
+      score += 10; // Single person is easier to accommodate
+    } else if (features.pax === '2 people') {
+      score += 8;
+    } else {
+      score += 6; // More people = more complex
+    }
+  }
+  
+  // Car ownership (5 points)
+  if (features.car === 'Yes') {
+    score += 5;
+  }
+  
+  
+  // Move-in date urgency (20 points max - very important)
+  if (features.movein) {
+    try {
+      const moveDate = new Date(features.movein);
+      const today = new Date();
+      const diffDays = Math.ceil((moveDate - today) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays <= 7) {
+        score += 20; // Urgent - highest score
+      } else if (diffDays <= 30) {
+        score += 16; // Soon
+      } else if (diffDays <= 90) {
+        score += 12; // Planning ahead
+      } else {
+        score += 8; // Far future
+      }
+    } catch (e) {
+      score += 8; // Default if date parsing fails
+    }
+  }
+  
+  // Tenancy period (5 points)
+  if (features.tenancy) {
+    if (features.tenancy === '12 months') {
+      score += 5; // Longer commitment preferred
+    } else {
+      score += 3;
+    }
+  }
+  
+  // Unit specifications (5 points)
+  if (features.unit_spec) {
+    score += 5;
+  }
+  
+  // Workplace location (10 points)
+  if (features.workplace && features.workplace.trim().length > 0) {
+    score += 10;
+    // Bonus for major business districts
+    const workplace = features.workplace.toLowerCase();
+    if (['klcc', 'kl sentral', 'cyberjaya', 'bangsar', 'mont kiara'].some(area => workplace.includes(area))) {
+      score += 3;
+    }
+  }
+  
+  // Nationality (8 points)
+  if (features.nationality) {
+    if (features.nationality === 'Malaysian') {
+      score += 8; // Local preference
+    } else {
+      score += 6; // International
+      if (features.nationality_detail) {
+        score += 2; // Provided additional details
+      }
+    }
+  }
+  
+  // Time-based bonuses
+  const currentHour = new Date().getHours();
+  if (currentHour >= 9 && currentHour <= 17) {
+    score += 3; // Business hours bonus
+  }
+  
+  const currentDay = new Date().getDay();
+  if (currentDay >= 1 && currentDay <= 5) {
+    score += 2; // Weekday bonus
+  }
+  
+  // Completeness bonus
+  const answeredQuestions = Object.keys(features).filter(key => features[key] && features[key] !== '').length;
+  const completenessBonus = Math.floor(answeredQuestions / 2); // 1 point per 2 answered questions
+  score += completenessBonus;
+  
+  const finalScore = Math.max(0, Math.min(100, Math.round(score)));
+  console.log('Client-side score calculation:', { features, rawScore: score, finalScore });
+  
+  return finalScore;
+}
+
+// Updated server-side scoring function
+async function recomputeScoreFromFeatures(features) {
+  if (MODEL_SOURCE === 'server') {
+    try {
+      if (DEBUG_MODE) {
+        document.getElementById('lastApiCall').textContent = new Date().toLocaleTimeString();
+        document.getElementById('featuresSent').textContent = JSON.stringify(features).substring(0, 50) + '...';
+        document.getElementById('usingServer').textContent = 'Yes';
+      }
+      
+      console.log('Calling server with features:', features);
+      
+      const response = await fetch(SCORE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(features)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Server response:', data);
+      
+      const score = data.score || data.alps_score || 50;
+      
+      if (DEBUG_MODE) {
+        document.getElementById('scoreReceived').textContent = score;
+      }
+      
+      return Math.max(0, Math.min(100, Math.round(score)));
+      
+    } catch (error) {
+      console.error('Server scoring failed:', error);
+      
+      if (DEBUG_MODE) {
+        document.getElementById('usingServer').textContent = 'No (Fallback)';
+      }
+      
+      // Fallback to client-side scoring
+      return clientSideHeuristicScore(features);
+    }
+  }
+  
+  return clientSideHeuristicScore(features);
+}
+
+// Legacy heuristic function (for backward compatibility)
+function heuristicScore(features) {
+  return clientSideHeuristicScore(features);
+}
 
 /* ======= INIT ======= */
 document.addEventListener('DOMContentLoaded', () => {
@@ -675,7 +681,7 @@ function getNextAvailableAgent(){
   return null;
 }
 
-/* ======= LEADS MANAGEMENT ======= */
+ /* ======= LEADS MANAGEMENT ======= */
 function seedInitialLeads(){
   const initialLeads = [
     {area:'Mont Kiara', score:87, agent:'Sarah Chen', status:'assigned'},
@@ -915,7 +921,7 @@ function openSLAChat(id){
     return;
   }
 
-  // Legacy demo handling remains the same
+  // Legacy demo handling
   const l = {
     conv1:{title:'Lead #2024001 - Sarah Chen',details:'Mont Kiara • ALPS: 87 • Active for 12 mins',messages:[
       {type:'customer',text:"Hi, I'm looking for a room in Mont Kiara area",time:'14:32'},
@@ -1102,7 +1108,7 @@ function aiTakeoverConversation(conv){
   // Add AI takeover message
   const aiMessage = {
     type: 'system',
-    text: `🤖 AI Assistant has taken over this conversation due to low engagement score (${conv.score}). Agent capacity freed.`,
+    text: `AI Assistant has taken over this conversation due to low engagement score (${conv.score}). Agent capacity freed.`,
     time: new Date().toLocaleTimeString()
   };
   conv.messages.push(aiMessage);
@@ -1183,12 +1189,12 @@ function getConversationClass(conv){
 }
 
 function getConversationStatus(conv){
-  if(!conv.slaTimer) return {status:'✅ Active', color:'#2ecc71'};
-  if(conv.status === 'waiting_agent_response') return {status:'⏳ Waiting', color:'#f39c12'};
-  if(conv.status === 'ai_takeover') return {status:'🤖 AI Handling', color:'#3498db'};
-  if(conv.slaTimer.overdue > 0) return {status:'🚨 Breach', color:'#e74c3c'};
-  if(conv.slaTimer.alertTriggered) return {status:'⚠️ Alert', color:'#f39c12'};
-  return {status:'✅ Active', color:'#2ecc71'};
+  if(!conv.slaTimer) return {status:'Active', color:'#2ecc71'};
+  if(conv.status === 'waiting_agent_response') return {status:'Waiting', color:'#f39c12'};
+  if(conv.status === 'ai_takeover') return {status:'AI Handling', color:'#3498db'};
+  if(conv.slaTimer.overdue > 0) return {status:'Breach', color:'#e74c3c'};
+  if(conv.slaTimer.alertTriggered) return {status:'Alert', color:'#f39c12'};
+  return {status:'Active', color:'#2ecc71'};
 }
 
 function getConversationTimer(conv){
@@ -1379,6 +1385,8 @@ function initializeChat(){
   const box = document.getElementById('chatMessages');
   box.innerHTML = `<div class="typing-indicator" id="typingIndicator"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
   updateChatScoreDisplay();
+  
+  console.log('Chat initialized - starting with first question');
   setTimeout(() => askQuestion(0), 400);
 }
 
@@ -1386,6 +1394,9 @@ function askQuestion(i){
   if(i >= questions.length){ return finalizeLead(); }
   const q = questions[i]; 
   chatCurrentStep = i; 
+  
+  console.log('Asking question', i, ':', q.text);
+  
   showTyping();
   setTimeout(() => {
     hideTyping();
@@ -1430,23 +1441,21 @@ function toggleMultipleChoice(oid, id){
   item.classList.toggle('selected', cb.checked); 
 }
 
-function submitMultipleChoice(id){
-  const vals = [...document.querySelectorAll(`#checkboxGroup_${id} input[type="checkbox"]:checked`)].map(cb => cb.value);
-  if(!vals.length) return alert('Please select at least one option');
-  chatUserResponses[id] = vals; 
-  addMessage(vals.join(', '), 'user');
-  recalcScoreAndAdvance(id, vals);
-}
-
 function selectOption(id, val){
   if(id === 'nationality' && val === 'Others'){
     chatUserResponses[id] = val;
     addMessage(val, 'user');
     addMessage(`<div>Please specify your nationality:</div><input class="input-field" type="text" placeholder="e.g., Filipino, Iranian" onkeypress="handleInputKeypress(event,'nationality_other')">`, 'bot');
+    // Don't advance yet, wait for nationality_detail
     return;
   }
+  
   chatUserResponses[id] = val; 
   addMessage(val, 'user');
+  
+  console.log('Selected option:', id, '=', val);
+  console.log('Current responses:', chatUserResponses);
+  
   recalcScoreAndAdvance(id, val);
 }
 
@@ -1454,11 +1463,15 @@ function handleInputKeypress(e, id){
   if(e.key === 'Enter'){ 
     const v = e.target.value.trim(); 
     if(!v) return; 
+    
     if(id === 'nationality_other'){ 
       chatUserResponses['nationality_detail'] = v; 
       addMessage(v, 'user'); 
+      console.log('Nationality detail provided:', v);
       recalcScoreAndAdvance('nationality_detail', v); 
     } else { 
+      chatUserResponses[id] = v;
+      console.log('Input provided:', id, '=', v);
       selectOption(id, v); 
     } 
   } 
@@ -1466,14 +1479,45 @@ function handleInputKeypress(e, id){
 
 function handleDateChange(e, id){ 
   const v = e.target.value; 
-  if(v) selectOption(id, v); 
+  if(v) {
+    chatUserResponses[id] = v;
+    console.log('Date selected:', id, '=', v);
+    selectOption(id, v);
+  }
+}
+
+function submitMultipleChoice(id){
+  const vals = [...document.querySelectorAll(`#checkboxGroup_${id} input[type="checkbox"]:checked`)].map(cb => cb.value);
+  if(!vals.length) return alert('Please select at least one option');
+  
+  chatUserResponses[id] = vals; 
+  addMessage(vals.join(', '), 'user');
+  console.log('Multiple choice selected:', id, '=', vals);
+  
+  recalcScoreAndAdvance(id, vals);
 }
 
 function recalcScoreAndAdvance(lastId, val){
-  recomputeScoreFromFeatures({...chatUserResponses}).then(score => {
+  // Make sure we include the latest response
+  const currentFeatures = {...chatUserResponses};
+  
+  console.log('Recalculating score with features:', currentFeatures);
+  console.log('Current step:', chatCurrentStep, 'Last answered:', lastId, 'Value:', val);
+  
+  recomputeScoreFromFeatures(currentFeatures).then(score => {
+    console.log('New score calculated:', score);
+    
     chatAlpsScore = Math.max(0, Math.min(100, score));
     updateChatScoreDisplay();
-    setTimeout(() => askQuestion(chatCurrentStep + 1), 400);
+    
+    // Add a small delay to show the score update
+    setTimeout(() => askQuestion(chatCurrentStep + 1), 600);
+  }).catch(error => {
+    console.error('Score calculation failed:', error);
+    // Use fallback scoring
+    chatAlpsScore = clientSideHeuristicScore(currentFeatures);
+    updateChatScoreDisplay();
+    setTimeout(() => askQuestion(chatCurrentStep + 1), 600);
   });
 }
 
@@ -1486,65 +1530,12 @@ function updateChatScoreDisplay(){
   bar.className = 'score-fill ' + (chatAlpsScore >= 70 ? 'score-hot' : chatAlpsScore >= 40 ? 'score-warm' : 'score-cold');
   text.textContent = `${Math.round(chatAlpsScore)} / 100`;
   cat.textContent = chatAlpsScore >= 70 ? 'Hot Lead' : chatAlpsScore >= 40 ? 'Warm Lead' : 'Cold Lead';
+  
+  console.log('Score display updated:', Math.round(chatAlpsScore));
 }
 
 function getPropertiesForArea(area){ 
   return PROPERTIES; 
-}
-
-function recomputeScoreFromFeatures(features){
-  if(MODEL_SOURCE === 'server'){
-    console.log('Sending features to server:', features); // Debug log
-    return fetch(SCORE_ENDPOINT, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(features)
-    })
-    .then(r => {
-      if (!r.ok) {
-        throw new Error('Network response was not ok');
-      }
-      return r.json();
-    })
-    .then(d => {
-      console.log('Received score:', d); // Debug log
-      return Number(d.score) || 50;
-    })
-    .catch(error => {
-      console.error('Error calling API:', error);
-      return heuristicScore(features); // Fallback
-    });
-  }
-  return Promise.resolve(heuristicScore(features));
-}
-
-function heuristicScore(f){
-  let score = 0;
-  if(f.area) score += 15;
-  if(f.property) score += 10;
-  if(f.budget){ 
-    const b = parseInt(f.budget) || 0; 
-    score += b >= 800 ? 25 : b >= 600 ? 18 : b >= 400 ? 10 : 3; 
-  }
-  if(f.pax) score += 8;
-  if(f.car) score += 4;
-  if(f.parking) score += 4;
-  if(f.movein){ 
-    const d = new Date(f.movein);
-    const t = new Date();
-    const diff = Math.ceil((d - t) / (1000 * 60 * 60 * 24)); 
-    score += diff <= 7 ? 20 : diff <= 30 ? 16 : diff <= 60 ? 12 : 6; 
-  }
-  if(f.tenancy) score += 4;
-  if(f.unit_spec) score += 4;
-  if(f.workplace) score += 8;
-  if(f.gender) score += 0;
-  if(f.nationality === 'Malaysian') score += 6;
-  if(f.nationality === 'Others'){ 
-    score += 4; 
-    if(f.nationality_detail) score += 2; 
-  }
-  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 function finalizeLead(){
