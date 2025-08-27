@@ -6,6 +6,7 @@ from flask_cors import CORS
 import os
 from datetime import datetime, timedelta
 import logging
+import joblib
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,23 +23,33 @@ feature_names = None
 ARTIFACT_DIR = os.environ.get("ARTIFACT_DIR", os.path.dirname(__file__))
 
 def load_model_artifacts():
+    """
+    Load joblib-saved model and optional feature names.
+    Works when the app is imported by gunicorn (no __main__ block).
+    """
     global model, feature_names
     try:
-        with open(os.path.join(ARTIFACT_DIR, 'best_rf_model.pkl'), 'rb') as f:
-            model = pickle.load(f)
+        model_path = os.path.join(ARTIFACT_DIR, "best_rf_model.pkl")
+        feature_path = os.path.join(ARTIFACT_DIR, "alps_feature_names.pkl")
+
+        model = joblib.load(model_path)  # <-- joblib load
+        logger.info(f"Model loaded: {type(model).__name__} from {model_path}")
+
         try:
-            with open(os.path.join(ARTIFACT_DIR, 'alps_feature_names.pkl'), 'rb') as f:
-                feature_names = pickle.load(f)
+            feature_names = joblib.load(feature_path)  # if you saved with joblib too
+            logger.info(f"Feature names loaded: {len(feature_names)}")
         except FileNotFoundError:
             feature_names = None
+            logger.warning("alps_feature_names.pkl not found (continuing without it)")
         return True
+
     except Exception as e:
         logger.error(f"Model load failed: {e}")
         model = None
         feature_names = None
         return False
 
-# <<< load on import so it works with gunicorn
+# Load on import (so it works with `gunicorn app:app`)
 load_model_artifacts()
 
 def prepare_features(form_data):
