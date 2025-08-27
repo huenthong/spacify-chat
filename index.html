@@ -302,9 +302,9 @@
 /* ======= CONFIG ======= */
 const MODEL_SOURCE = 'server'; // Using server-side pickle model
 const SCORE_ENDPOINT = 'http://localhost:5000/api/score'; // UPDATE THIS TO YOUR ACTUAL SERVER URL
-const LOW_SCORE_THRESHOLD = 30;
+const LOW_SCORE_THRESHOLD = 35;
 const INITIAL_RESPONSE_TIMEOUT = 300;
-const DEBUG_MODE = true; // Set to false in production
+const DEBUG_MODE = false; // Disabled debug mode
 
 // Enable debug info if in debug mode
 if (DEBUG_MODE) {
@@ -681,7 +681,7 @@ function getNextAvailableAgent(){
   return null;
 }
 
- /* ======= LEADS MANAGEMENT ======= */
+/* ======= LEADS MANAGEMENT ======= */
 function seedInitialLeads(){
   const initialLeads = [
     {area:'Mont Kiara', score:87, agent:'Sarah Chen', status:'assigned'},
