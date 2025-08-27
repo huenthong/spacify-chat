@@ -18,31 +18,28 @@ CORS(app)
 model = None
 feature_names = None
 
+# Where artifacts live (works locally and on Railway)
+ARTIFACT_DIR = os.environ.get("ARTIFACT_DIR", os.path.dirname(__file__))
+
 def load_model_artifacts():
-    """Load the pickle model and feature information"""
     global model, feature_names
     try:
-        # Load the main model
-        with open('best_rf_model.pkl', 'rb') as f:
+        with open(os.path.join(ARTIFACT_DIR, 'best_rf_model.pkl'), 'rb') as f:
             model = pickle.load(f)
-        logger.info(f"Model loaded successfully: {type(model).__name__}")
-        
-        # Try to load feature names if available
         try:
-            with open('alps_feature_names.pkl', 'rb') as f:
+            with open(os.path.join(ARTIFACT_DIR, 'alps_feature_names.pkl'), 'rb') as f:
                 feature_names = pickle.load(f)
-            logger.info(f"Feature names loaded: {len(feature_names)} features")
         except FileNotFoundError:
-            logger.warning("alps_feature_names.pkl not found - will use default feature order")
             feature_names = None
-            
         return True
-    except FileNotFoundError:
-        logger.error("Model file 'best_rf_model.pkl' not found")
-        return False
     except Exception as e:
-        logger.error(f"Error loading model: {str(e)}")
+        logger.error(f"Model load failed: {e}")
+        model = None
+        feature_names = None
         return False
+
+# <<< load on import so it works with gunicorn
+load_model_artifacts()
 
 def prepare_features(form_data):
     """
