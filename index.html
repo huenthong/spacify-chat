@@ -665,11 +665,6 @@ async function handleChatAnswer(id, value){
   chatAlpsScore = score;
   updateScoreFloater(score);
 
-  // If currently cold and becomes warm/hot during AI chat, route immediately (round-robin)
-  if(leadCategory(score)!=='cold' && currentPage==='chat'){
-    routeLeadAfterQualification(score);
-    return;
-  }
   askNextQuestion();
 }
 function echoUser(text){
