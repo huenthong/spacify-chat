@@ -82,6 +82,7 @@
   .timer-badge{padding:5px 10px;border-radius:14px;font-weight:800;font-size:12px}
   .timer-negative{background:#f39c12;color:#fff}
   .timer-positive{background:#e74c3c;color:#fff}
+  .timer-ai{background:#3498db;color:#fff}
   .sla-chat-area{background:#fff;border-radius:15px;box-shadow:0 4px 14px rgba(0,0,0,.08);display:flex;flex-direction:column}
   .sla-chat-header{background:#34495e;color:#fff;padding:18px;border-radius:15px 15px 0 0;display:flex;justify-content:space-between;align-items:center}
   .sla-messages{flex:1;overflow-y:auto;padding:18px;background:#f8f9fa}
@@ -737,14 +738,116 @@ function getLeadStatusText(status){
 }
 
 /* ======= SLA / CONVERSATIONS ======= */
-// Add score monitoring for AI-handled conversations
-function startScoreMonitoring(conv){
-  conv.scoreMonitoringActive = true;
+// Add AI conversation simulation
+function simulateAIConversation(conv){
+  if(conv.status !== 'ai_takeover') return;
+  
+  const aiMessages = [
+    "I understand you have some concerns. Let me help you find better options that might work for you.",
+    "Based on what you've shared, I think I can suggest some properties that better match your needs and budget.",
+    "Would you be interested in exploring similar properties in nearby areas? Sometimes we find great deals just a short distance away.",
+    "I notice you mentioned budget is a concern. We have some promotional rates available - would you like me to check what's available?",
+    "Let me ask you this - what's the most important factor for you: location, price, or amenities?",
+    "I have access to some exclusive listings that might not be publicly available yet. Interested in hearing about them?"
+  ];
+  
+  const randomMessage = aiMessages[Math.floor(Math.random() * aiMessages.length)];
+  
+  const aiChatMessage = {
+    type: 'agent',
+    text: randomMessage,
+    time: new Date().toLocaleTimeString(),
+    isAI: true
+  };
+  
+  conv.messages.push(aiChatMessage);
+  
+  // Show in UI if conversation is currently open
+  if(selectedConversation === conv.id) {
+    const box = document.getElementById('slaMessages');
+    const div = document.createElement('div');
+    div.className = 'message message-bot';
+    div.innerHTML = `<div>${randomMessage}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${aiChatMessage.time} (AI)</div>`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+  
+  // Simulate customer response after 2-4 seconds
+  setTimeout(() => simulateCustomerResponse(conv), Math.random() * 2000 + 2000);
 }
 
-// Enhanced SLA timer to check for score improvements
+function simulateCustomerResponse(conv){
+  if(conv.status !== 'ai_takeover') return;
+  
+  const responses = [
+    { text: "That sounds interesting, tell me more", scoreChange: +5 },
+    { text: "Yes, I'd like to hear about those options", scoreChange: +8 },
+    { text: "I'm not sure, the price is still my main concern", scoreChange: -2 },
+    { text: "Actually, I'm getting more interested. What do you have?", scoreChange: +12 },
+    { text: "Hmm, maybe. What areas are you talking about?", scoreChange: +3 },
+    { text: "I'm still not convinced", scoreChange: -5 },
+    { text: "OK, I'm willing to listen", scoreChange: +6 },
+    { text: "That's exactly what I was hoping to hear!", scoreChange: +15 },
+  ];
+  
+  const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+  const newScore = Math.max(5, Math.min(100, conv.score + randomResponse.scoreChange));
+  
+  const customerMessage = {
+    type: 'customer',
+    text: randomResponse.text,
+    time: new Date().toLocaleTimeString(),
+    score: newScore
+  };
+  
+  conv.messages.push(customerMessage);
+  conv.score = newScore;
+  
+  // Update lead database
+  const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
+  if(leadIndex !== -1){
+    allLeadsDatabase[leadIndex].score = newScore;
+  }
+  
+  // Show in UI if conversation is currently open
+  if(selectedConversation === conv.id) {
+    const box = document.getElementById('slaMessages');
+    const div = document.createElement('div');
+    div.className = 'message message-user';
+    div.style.position = 'relative';
+    div.innerHTML = `<div>${randomResponse.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${customerMessage.time}</div>`;
+    
+    // Add score badge
+    const scoreBadge = document.createElement('div');
+    scoreBadge.className = 'message-score';
+    scoreBadge.textContent = newScore;
+    div.appendChild(scoreBadge);
+    
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+  
+  updateConversationListItem(conv.id);
+  
+  // Check if score improved enough for agent handback alert
+  if(newScore > WARM_SCORE_THRESHOLD && conv.scoreMonitoringActive) {
+    showScoreImprovementAlert(conv);
+  } else {
+    // Continue AI conversation after 3-6 seconds
+    setTimeout(() => simulateAIConversation(conv), Math.random() * 3000 + 3000);
+  }
+}
+
+// Enhanced SLA timer to exclude AI-handled conversations
 function tickSLATimers(){
   Object.values(activeConversations).forEach(conv=>{
+    // Skip SLA timers for AI-handled conversations
+    if(conv.status === 'ai_takeover') {
+      updateConversationListItem(conv.id);
+      if(selectedConversation === conv.id) loadActiveConversation(conv);
+      return;
+    }
+    
     const t = conv.slaTimer;
     if(!t) return;
 
@@ -763,17 +866,14 @@ function tickSLATimers(){
       t.overdue++;
     }
     
-    // Check for score improvement in AI-handled conversations
-    if(conv.status === 'ai_takeover' && conv.scoreMonitoringActive){
-      if(conv.score > WARM_SCORE_THRESHOLD){
-        // Score improved! Alert agent to take back
-        showScoreImprovementAlert(conv);
-      }
-    }
-    
     updateConversationListItem(conv.id);
     if(selectedConversation === conv.id) loadActiveConversation(conv);
   });
+}
+
+// Add score monitoring for AI-handled conversations
+function startScoreMonitoring(conv){
+  conv.scoreMonitoringActive = true;
 }
 
 function showScoreImprovementAlert(conv){
@@ -1085,7 +1185,7 @@ function aiTakeoverConversation(conv){
   conv.status = 'ai_takeover';
   conv.previousAgentId = conv.agentId;
   conv.previousAgentName = conv.agentName;
-  conv.aiTakeoverScore = conv.score; // Remember the score when AI took over
+  conv.aiTakeoverScore = conv.score;
   
   // Free agent capacity but keep conversation visible to agent
   const agentConvs = agentConversations[conv.agentId];
@@ -1093,6 +1193,9 @@ function aiTakeoverConversation(conv){
   if(index !== -1) {
     agentConvs.splice(index, 1);
   }
+  
+  // Remove SLA timer for AI-handled conversations
+  conv.slaTimer = null;
   
   // Keep conversation in activeConversations so agent can still see it
   conv.agentName = 'AI Assistant (was ' + conv.previousAgentName + ')';
@@ -1124,6 +1227,9 @@ function aiTakeoverConversation(conv){
   
   showNotification(`AI takeover: Lead ${conv.leadNumber} (Score: ${conv.score}) - Capacity freed`, 'warning');
   refreshCurrentListView();
+  
+  // Start AI conversation simulation
+  setTimeout(() => simulateAIConversation(conv), 3000);
   
   // Start monitoring for score improvement
   startScoreMonitoring(conv);
@@ -1207,7 +1313,7 @@ function markDeal(){
   selectedConversation = null;
   document.getElementById('slaInputArea').style.display = 'none';
   refreshCurrentListView();
-  
+
   setTimeout(() => {
     document.getElementById('slaMessages').innerHTML = `<div style="text-align:center;color:#7f8c8d;margin-top:40px"><h3>💬 SLA Chat Monitor</h3><p>Select a conversation from the left to view and manage the chat</p></div>`;
   }, 2000);
@@ -1220,23 +1326,21 @@ function refreshCurrentListView(){
   if(currentListView.type === 'agent') showAgentConversationsList(currentListView.id);
 }
 
-function getConversationClass(conv){
-  if(!conv.slaTimer) return 'conversation-item';
-  if(conv.slaTimer.type === 'initial' && conv.slaTimer.timeRemaining <= 10) return 'sla-warning';
-  if(conv.slaTimer.overdue > 0) return 'sla-breach';
-  return '';
-}
-
 function getConversationStatus(conv){
+  if(conv.status === 'ai_takeover') return {status:'AI Handling', color:'#3498db'};
   if(!conv.slaTimer) return {status:'Active', color:'#2ecc71'};
   if(conv.status === 'waiting_agent_response') return {status:'Waiting', color:'#f39c12'};
-  if(conv.status === 'ai_takeover') return {status:'AI Handling', color:'#3498db'};
   if(conv.slaTimer.overdue > 0) return {status:'Breach', color:'#e74c3c'};
   if(conv.slaTimer.alertTriggered) return {status:'Alert', color:'#f39c12'};
   return {status:'Active', color:'#2ecc71'};
 }
 
 function getConversationTimer(conv){
+  // AI-handled conversations don't have timers
+  if(conv.status === 'ai_takeover') {
+    return {text:'AI Active', class:'timer-ai', description:'AI handling conversation'};
+  }
+  
   if(!conv.slaTimer) return {text:'--:--', class:'timer-negative', description:'No timer'};
   const t = conv.slaTimer;
   if(t.overdue > 0){
@@ -1250,6 +1354,14 @@ function getConversationTimer(conv){
     return {text:`-${m}:${s}`, class:'timer-negative', description:t.type==='initial'?'Initial response due':'Next response due'};
   }
   return {text:'0:00', class:'timer-negative', description:'Timer expired'};
+}
+
+function getConversationClass(conv){
+  if(conv.status === 'ai_takeover') return 'conversation-ai-handled';
+  if(!conv.slaTimer) return 'conversation-item';
+  if(conv.slaTimer.type === 'initial' && conv.slaTimer.timeRemaining <= 10) return 'sla-warning';
+  if(conv.slaTimer.overdue > 0) return 'sla-breach';
+  return '';
 }
 
 function getStatusText(s){
