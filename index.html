@@ -1049,6 +1049,19 @@ function getLeadStatusText(status){
     default: return 'Pending';
   }
 }
+
+/* ==== LEGACY SHIMS – add here ==== */
+function getStatusText(status){
+  // Alias to your existing labeler
+  return getLeadStatusText(status);
+}
+
+function loadActiveConversation(conv){
+  // Accept either an id string or a conversation object
+  const id = (conv && typeof conv === 'object') ? conv.id : conv;
+  if (!id) return;
+  openSLAChat(id); // delegate to your existing renderer
+}
 </script>
 </body>
 </html>
