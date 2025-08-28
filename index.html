@@ -744,9 +744,9 @@ function routeLeadAfterQualification(score){
     agentName: pick.name,
     status: 'waiting_agent_response',
     messages: [{type:'system', text:`Assigned to ${pick.name} via round-robin`, time: nowHHMMSS()}],
-    slaTimer: {type:'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0}
+    slaTimer: {type:'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0},
+    scoreHistory: [{time: nowHHMMSS(), score: lead.score}]
   };
-  scoreHistory: [{time: nowHHMMSS(), score: lead.score}],
   activeConversations[convId] = conv;
   agentConversations[pick.id].push(conv);
   refreshLeadsView();
@@ -1180,6 +1180,8 @@ function loadActiveConversation(conv){
   openSLAChat(id); // delegate to your existing renderer
 }
 
+</script>
+  
 <!-- Lead Chart Modal -->
 <div id="leadChartModal" class="modal">
   <div class="modal-content">
@@ -1188,8 +1190,7 @@ function loadActiveConversation(conv){
     <canvas id="leadTrendCanvas" height="120"></canvas>
   </div>
 </div>
-
-</script>
+  
 </body>
 </html>
 
