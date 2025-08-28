@@ -763,7 +763,7 @@ function tickSLATimers(){
       t.overdue++;
     }
     updateConversationListItem(conv.id);
-    if(selectedConversation === conv.id) loadActiveConversation(conv);
+    if(selectedConversation === conv.id) openSLAChat(conv.id);
   });
 }
 
@@ -829,7 +829,7 @@ function openSLAChat(id){
   if(!conv) return;
 
   document.getElementById('slaCurrentChat').textContent = `Lead ${conv.leadNumber} - ${conv.agentName}`;
-  document.getElementById('slaCurrentDetails').textContent = `${conv.area||'-'} • ALPS: ${conv.score} • ${getStatusText(conv.status)}`;
+  document.getElementById('slaCurrentDetails').textContent = `${conv.area||'-'} • ALPS: ${conv.score} • ${getLeadStatusText(conv.status)}`;
 
   const info = getConversationTimer(conv);
   const tEl = document.getElementById('slaCurrentTimer');
