@@ -707,7 +707,8 @@ function routeLeadAfterQualification(score){
     property:chatUserResponses.property,
     status: category==='cold' ? 'ai_handling' : 'assigned',
     timestamp: Date.now(),
-    responses: {...chatUserResponses}
+    responses: {...chatUserResponses},
+    scoreHistory: [{ t: Date.now(), score }]
   };
   nextLeadId++;
 
@@ -745,7 +746,7 @@ function routeLeadAfterQualification(score){
     status: 'waiting_agent_response',
     messages: [{type:'system', text:`Assigned to ${pick.name} via round-robin`, time: nowHHMMSS()}],
     slaTimer: {type:'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0},
-    scoreHistory: [{time: nowHHMMSS(), score: lead.score}]
+    scoreHistory: [{ t: Date.now(), score: lead.score }]
   };
   activeConversations[convId] = conv;
   agentConversations[pick.id].push(conv);
@@ -872,26 +873,27 @@ function openSLAChat(id){
 
 function sendSLAMessage(){
   const input = document.getElementById('slaMessageInput');
-  const text = (input.value||'').trim();
-  if(!text) return;
-  input.value='';
+  const text = (input.value || '').trim();
+  if (!text) return;
+  input.value = '';
 
   const conv = activeConversations[selectedConversation];
-  if(!conv) return;
+  if (!conv) return;
 
-  // append agent message
-  conv.messages.push({type:'agent', text, time: nowHHMMSS()});
+  // Agent message -> UI + model
+  conv.messages.push({ type:'agent', text, time: nowHHMMSS() });
+
   const box = document.getElementById('slaMessages');
-  const d = document.createElement('div');
-  d.className='message message-bot';
-  d.innerHTML = `<div>${text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${nowHHMMSS()}</div>`;
-  box.appendChild(d);
+  const agentDiv = document.createElement('div');
+  agentDiv.className = 'message message-bot';
+  agentDiv.innerHTML = `<div>${text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${nowHHMMSS()}</div>`;
+  box.appendChild(agentDiv);
   box.scrollTop = box.scrollHeight;
 
-  // timer rules
-  if(conv.status === 'waiting_agent_response'){
+  // SLA timer rules
+  if (conv.status === 'waiting_agent_response') {
     conv.status = 'ongoing';
-    conv.slaTimer = {type:'ongoing', timeRemaining: ONGOING_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0};
+    conv.slaTimer = { type:'ongoing', timeRemaining: ONGOING_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0 };
   } else {
     conv.slaTimer.timeRemaining = ONGOING_RESPONSE_TIMEOUT;
     conv.slaTimer.alertTriggered = false;
@@ -899,27 +901,92 @@ function sendSLAMessage(){
   }
   updateConversationListItem(conv.id);
 
-  // fake customer reply to keep demo moving
-  setTimeout(()=>{
-    const replies = ["Thanks! That helps.","I'm interested to view.","Sounds good!","The price is too high","I changed my mind"];
-    const r = replies[Math.floor(Math.random()*replies.length)];
+  // Simulate customer reply to drive the demo forward
+  setTimeout(() => {
+    const replies = [
+      "Thanks! That helps.",
+      "I'm interested to view.",
+      "Sounds good!",
+      "The price is too high",
+      "I changed my mind"
+    ];
+    const r = replies[Math.floor(Math.random() * replies.length)];
+
+    // Re-score
     const newScore = calculateScoreFromResponse(r, conv.score);
     conv.score = newScore;
-    conv.scoreHistory = conv.scoreHistory || [];
-    conv.scoreHistory.push({time: nowHHMMSS(), score: newScore});
-    if(newScore < 35){
-      handoverToAI(conv);
+
+    // --- NEW: push to conversation score history (timestamp in ms) ---
+    if (!Array.isArray(conv.scoreHistory)) conv.scoreHistory = [];
+    conv.scoreHistory.push({ t: Date.now(), score: newScore });
+
+    // --- NEW: keep the corresponding lead in sync ---
+    const leadRef = allLeadsDatabase.find(l => l.leadNumber === conv.leadNumber);
+    if (leadRef) {
+      leadRef.score = newScore;
+      if (!Array.isArray(leadRef.scoreHistory)) leadRef.scoreHistory = [];
+      leadRef.scoreHistory.push({ t: Date.now(), score: newScore });
+    }
+
+    // If score falls below 35 -> AI takeover and free capacity
+    if (newScore < 35) {
+      conv.messages.push({ type:'system', text:`Score dropped to ${newScore}. Switching to AI for nurturing.`, time: nowHHMMSS() });
+      handoverToAI(conv);   // helper below
       return;
     }
-    conv.messages.push({type:'customer', text:r, time:nowHHMMSS(), score:newScore});
+
+    // Normal path: append customer message and continue SLA timer
+    conv.messages.push({ type:'customer', text: r, time: nowHHMMSS(), score: newScore });
+
     conv.slaTimer.timeRemaining = ONGOING_RESPONSE_TIMEOUT;
+
+    // UI for customer message
     const u = document.createElement('div');
-    u.className='message message-user'; u.style.position='relative';
+    u.className = 'message message-user';
+    u.style.position = 'relative';
     u.innerHTML = `<div>${r}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${nowHHMMSS()}</div>`;
-    const sb = document.createElement('div'); sb.className='message-score'; sb.textContent=newScore; u.appendChild(sb);
-    box.appendChild(u); box.scrollTop = box.scrollHeight;
+    const sb = document.createElement('div');
+    sb.className = 'message-score';
+    sb.textContent = newScore;
+    u.appendChild(sb);
+    box.appendChild(u);
+    box.scrollTop = box.scrollHeight;
+
     updateConversationListItem(conv.id);
   }, 1500);
+}
+
+function handoverToAI(conv){
+  // Remove from current agent to free capacity
+  if (conv.agentId && agentConversations[conv.agentId]) {
+    const arr = agentConversations[conv.agentId];
+    const ix = arr.findIndex(c => c.id === conv.id);
+    if (ix > -1) arr.splice(ix, 1);
+  }
+
+  // Update conversation state
+  conv.agentId = null;
+  conv.agentName = 'AI Bot';
+  conv.status = 'ai_takeover';
+  conv.slaTimer = null; // AI isn’t bound by the human SLA timer
+  updateConversationListItem(conv.id);
+
+  // Reflect on the lead card too
+  const leadRef = allLeadsDatabase.find(l => l.leadNumber === conv.leadNumber);
+  if (leadRef) {
+    leadRef.agent = 'AI Bot';
+    leadRef.status = 'ai_takeover';
+  }
+
+  // Refresh lists/headers and keep the chat open showing the system message
+  if (currentListView.type === 'agent' && currentListView.id) {
+    showAgentConversationsList(currentListView.id);
+  } else {
+    showAllConversations();
+  }
+  if (selectedConversation === conv.id) {
+    openSLAChat(conv.id);
+  }
 }
 
 function handleSLAMessage(e){ if(e.key==='Enter') sendSLAMessage(); }
@@ -993,28 +1060,6 @@ function reassignToMostAvailable(conv){
     conv.slaTimer.overdue++;
     conv.messages.push({type:'system', text:`No agent available.`, time: nowHHMMSS()});
   }
-}
-/* ======To AI=========*/
-function handoverToAI(conv){
-  // free current agent capacity
-  if(conv.agentId){
-    const arr = agentConversations[conv.agentId];
-    const ix = arr.findIndex(c=>c.id===conv.id);
-    if(ix>-1) arr.splice(ix,1);
-  }
-  conv.agentId = null;
-  conv.agentName = 'AI Bot';
-  conv.status = 'ai_takeover';
-  conv.slaTimer = null;
-  conv.messages.push({type:'system', text:`AI has taken over (score dropped below 35).`, time: nowHHMMSS()});
-
-  // reflect in leads list
-  const lead = allLeadsDatabase.find(l=>l.leadNumber===conv.leadNumber);
-  if(lead){ lead.agent='AI Bot'; lead.status='ai_takeover'; }
-
-  showAllConversations();
-  syncAgentCapacitiesToConversations();
-  refreshLeadsView();
 }
 
 /* ======= SLA ALERT ======= */
@@ -1123,36 +1168,65 @@ function markConversationAsDeal(){
 let leadTrendChart = null;
 
 function showLeadChart(leadId){
-  // Find by id in current lists
-  const lead = allLeadsDatabase.find(l=>l.id===leadId) || completedLeads.find(l=>l.id===leadId);
+  // find the lead
+  const lead = allLeadsDatabase.find(l => l.id === leadId);
+  if (!lead) return;
 
-  // try to pull score history from active conversation (if any)
-  const conv = Object.values(activeConversations).find(c => c.leadNumber === (lead?.leadNumber || ''));
-  const history = (conv && conv.scoreHistory?.length) ? conv.scoreHistory
-                : [{time: nowHHMMSS(), score: lead?.score || 0}];
+  // prefer the active conversation’s history if present (it’s richer)
+  const activeConv = Object.values(activeConversations)
+    .find(c => c.leadNumber === lead.leadNumber);
+
+  const hist = (activeConv && Array.isArray(activeConv.scoreHistory) && activeConv.scoreHistory.length)
+    ? activeConv.scoreHistory
+    : (Array.isArray(lead.scoreHistory) ? lead.scoreHistory : []);
+
+  // safety: if still empty, seed with the current score/time
+  const series = hist.length ? hist : [{ t: Date.now(), score: lead.score }];
+
+  // labels & data
+  const labels = series.map(p => new Date(p.t).toLocaleTimeString());
+  const data    = series.map(p => p.score);
 
   // open modal
-  document.getElementById('leadChartTitle').textContent =
-    `Lead ${lead?.leadNumber || leadId} • Score trend`;
-  document.getElementById('leadChartModal').style.display = 'block';
+  const modal = document.getElementById('leadChartModal');
+  const title = document.getElementById('leadChartTitle');
+  title.textContent = `${lead.leadNumber} • Score trend`;
+  modal.style.display = 'block';
 
   const ctx = document.getElementById('leadTrendCanvas').getContext('2d');
-  const labels = history.map(h=>h.time);
-  const data = history.map(h=>h.score);
 
-  if(leadTrendChart){ leadTrendChart.destroy(); }
+  // destroy previous chart if any
+  if (leadTrendChart) {
+    leadTrendChart.destroy();
+    leadTrendChart = null;
+  }
+
+  // draw
   leadTrendChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
-      datasets: [{ label:'ALPS Score', data, fill:false, tension:0.25 }]
+      datasets: [{
+        label: 'ALPS Score',
+        data,
+        tension: 0.25,
+        fill: false,
+        pointRadius: 3,
+        borderWidth: 2
+      }]
     },
     options: {
-      animation:false,
-      scales:{ y:{ min:0, max:100 } }
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 100, ticks: { stepSize: 10 } }
+      },
+      plugins: { legend: { display: true } }
     }
   });
 }
+
 
 function getLeadStatusText(status){
   switch(status){
