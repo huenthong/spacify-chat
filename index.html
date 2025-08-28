@@ -737,6 +737,12 @@ function getLeadStatusText(status){
 }
 
 /* ======= SLA / CONVERSATIONS ======= */
+// Add score monitoring for AI-handled conversations
+function startScoreMonitoring(conv){
+  conv.scoreMonitoringActive = true;
+}
+
+// Enhanced SLA timer to check for score improvements
 function tickSLATimers(){
   Object.values(activeConversations).forEach(conv=>{
     const t = conv.slaTimer;
@@ -756,9 +762,100 @@ function tickSLATimers(){
     } else if(t.overdue > 0 || t.alertTriggered){
       t.overdue++;
     }
+    
+    // Check for score improvement in AI-handled conversations
+    if(conv.status === 'ai_takeover' && conv.scoreMonitoringActive){
+      if(conv.score > WARM_SCORE_THRESHOLD){
+        // Score improved! Alert agent to take back
+        showScoreImprovementAlert(conv);
+      }
+    }
+    
     updateConversationListItem(conv.id);
     if(selectedConversation === conv.id) loadActiveConversation(conv);
   });
+}
+
+function showScoreImprovementAlert(conv){
+  conv.scoreMonitoringActive = false; // Stop monitoring until next AI takeover
+  
+  // Create improvement alert
+  const alertDiv = document.createElement('div');
+  alertDiv.style.cssText = `
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: #fff; padding: 26px; border-radius: 14px; 
+    box-shadow: 0 10px 30px rgba(0,0,0,.3); z-index: 1200;
+    border-left: 5px solid #2ecc71; max-width: 500px;
+  `;
+  
+  alertDiv.innerHTML = `
+    <h3>📈 SCORE IMPROVED!</h3>
+    <p>Lead ${conv.leadNumber} score increased to ${conv.score} (Warm/Hot Lead)</p>
+    <div style="margin:12px 0;padding:12px;background:#e8f5e8;border-radius:8px">
+      <strong>Previous Agent:</strong> ${conv.previousAgentName}<br/>
+      <strong>Current Score:</strong> ${conv.score}<br/>
+      <strong>Status:</strong> Ready for agent handback
+    </div>
+    <div style="display:flex;gap:12px;margin-top:16px;justify-content:center">
+      <button onclick="handbackToAgent('${conv.id}')" style="padding:10px 18px;border:none;border-radius:8px;background:#2ecc71;color:#fff;cursor:pointer;font-weight:700">Take Back Lead</button>
+      <button onclick="dismissScoreAlert()" style="padding:10px 18px;border:none;border-radius:8px;background:#95a5a6;color:#fff;cursor:pointer;font-weight:700">Keep with AI</button>
+    </div>
+  `;
+  
+  document.body.appendChild(alertDiv);
+  alertDiv.id = 'scoreImprovementAlert';
+  
+  showNotification(`Lead ${conv.leadNumber} score improved to ${conv.score}! Ready for agent.`, 'success');
+}
+
+function handbackToAgent(convId){
+  const conv = activeConversations[convId];
+  if(!conv) return;
+  
+  // Find most available agent (prefer original agent if available)
+  let targetAgent = null;
+  if(conv.previousAgentId && agentConversations[conv.previousAgentId].length < MAX_AGENT_CAPACITY){
+    targetAgent = {id: conv.previousAgentId, name: conv.previousAgentName};
+  } else {
+    targetAgent = getMostAvailableAgent();
+  }
+  
+  if(!targetAgent){
+    alert('No agents available. Lead will remain with AI.');
+    dismissScoreAlert();
+    return;
+  }
+  
+  // Hand back to agent
+  conv.agentId = targetAgent.id;
+  conv.agentName = targetAgent.name;
+  conv.status = 'waiting_agent_response';
+  conv.slaTimer = {type: 'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered: false, overdue: 0};
+  agentConversations[targetAgent.id].push(conv);
+  
+  const handbackMessage = {
+    type: 'system',
+    text: `Lead handed back to ${targetAgent.name} due to improved score (${conv.score}). AI assistance complete.`,
+    time: new Date().toLocaleTimeString()
+  };
+  conv.messages.push(handbackMessage);
+  
+  // Update lead database
+  const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
+  if(leadIndex !== -1){
+    allLeadsDatabase[leadIndex].status = 'assigned';
+    allLeadsDatabase[leadIndex].agent = targetAgent.name;
+    allLeadsDatabase[leadIndex].score = conv.score;
+  }
+  
+  dismissScoreAlert();
+  refreshCurrentListView();
+  showNotification(`Lead ${conv.leadNumber} handed back to ${targetAgent.name}`, 'success');
+}
+
+function dismissScoreAlert(){
+  const alert = document.getElementById('scoreImprovementAlert');
+  if(alert) alert.remove();
 }
 
 function updateConversationListItem(convId){
@@ -927,11 +1024,25 @@ function sendSLAMessage(){
       
       const customerMessage = {type:'customer', text:r, time:new Date().toLocaleTimeString(), score: newScore};
       conv.messages.push(customerMessage);
+      
+      const oldScore = conv.score;
       conv.score = newScore;
       conv.slaTimer.timeRemaining = ONGOING_RESPONSE_TIMEOUT;
       
+      // Update lead database
+      const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
+      if(leadIndex !== -1){
+        allLeadsDatabase[leadIndex].score = newScore;
+      }
+      
+      // Check for AI takeover if score drops too low
       if(newScore <= LOW_SCORE_THRESHOLD && conv.status !== 'ai_takeover'){
         setTimeout(() => aiTakeoverConversation(conv), 2000);
+      }
+      // Check for score improvement if AI was handling and score goes up
+      else if(conv.status === 'ai_takeover' && newScore > WARM_SCORE_THRESHOLD && !conv.scoreMonitoringActive){
+        conv.scoreMonitoringActive = true; // Reactivate monitoring
+        setTimeout(() => showScoreImprovementAlert(conv), 1000);
       }
       
       updateConversationListItem(conv.id);
@@ -974,17 +1085,21 @@ function aiTakeoverConversation(conv){
   conv.status = 'ai_takeover';
   conv.previousAgentId = conv.agentId;
   conv.previousAgentName = conv.agentName;
-  conv.agentName = 'AI Assistant';
+  conv.aiTakeoverScore = conv.score; // Remember the score when AI took over
   
+  // Free agent capacity but keep conversation visible to agent
   const agentConvs = agentConversations[conv.agentId];
   const index = agentConvs.findIndex(c => c.id === conv.id);
   if(index !== -1) {
     agentConvs.splice(index, 1);
   }
   
+  // Keep conversation in activeConversations so agent can still see it
+  conv.agentName = 'AI Assistant (was ' + conv.previousAgentName + ')';
+  
   const aiMessage = {
     type: 'system',
-    text: `AI Assistant has taken over this conversation due to low engagement score (${conv.score}). Agent capacity freed.`,
+    text: `AI Assistant has taken over this conversation due to low engagement score (${conv.score}). Agent capacity freed but conversation remains visible.`,
     time: new Date().toLocaleTimeString()
   };
   conv.messages.push(aiMessage);
@@ -1007,8 +1122,11 @@ function aiTakeoverConversation(conv){
     loadActiveConversation(conv);
   }
   
-  showNotification(`AI takeover: Lead ${conv.leadNumber} (Score: ${conv.score})`, 'warning');
+  showNotification(`AI takeover: Lead ${conv.leadNumber} (Score: ${conv.score}) - Capacity freed`, 'warning');
   refreshCurrentListView();
+  
+  // Start monitoring for score improvement
+  startScoreMonitoring(conv);
 }
 
 function reassignToMostAvailableAgent(conv){
@@ -1192,40 +1310,119 @@ function showLeadChart(leadId){
 }
 
 function buildLeadChartData(lead){
+  console.log('Building chart data for lead:', lead);
+  
   if(lead.responses && Object.keys(lead.responses).length > 0){
+    // Use actual progression from responses
     const scores = [0]; 
-    let cur = 0;
-    questions.forEach(q => {
-      const r = lead.responses[q.id]; 
-      if(!r) return;
-      let inc = 0;
-      if(q.id === 'area' || q.id === 'property') inc = q.weight;
-      else if(q.id === 'budget'){ 
-        const b = parseInt(r); 
-        inc = b >= 800 ? q.weight : b >= 600 ? q.weight * 0.7 : b >= 400 ? q.weight * 0.4 : q.weight * 0.1; 
+    let currentScore = 0;
+    const questionIds = ['area', 'property', 'budget', 'pax', 'car', 'parking', 'movein', 'tenancy', 'gender', 'unit_spec', 'workplace', 'nationality'];
+    
+    questionIds.forEach(qId => {
+      const response = lead.responses[qId];
+      if(!response) {
+        scores.push(currentScore); // No change if no response
+        return;
       }
-      else if(q.id === 'movein'){ 
-        const d = new Date(r);
-        const t = new Date();
-        const diff = Math.ceil((d - t) / (1000 * 60 * 60 * 24)); 
-        inc = diff <= 7 ? q.weight : diff <= 30 ? q.weight * 0.8 : diff <= 60 ? q.weight * 0.6 : q.weight * 0.3; 
+      
+      // Calculate incremental score based on response
+      let increment = 0;
+      
+      switch(qId) {
+        case 'area':
+          increment = 8;
+          if(['KL/Selangor', 'Mont Kiara'].includes(response)) increment += 3;
+          break;
+        case 'property':
+          increment = 5;
+          break;
+        case 'budget':
+          const budget = parseInt(response) || 0;
+          if(budget >= 1200) increment = 15;
+          else if(budget >= 900) increment = 12;
+          else if(budget >= 600) increment = 10;
+          else if(budget >= 400) increment = 8;
+          else if(budget > 0) increment = 5;
+          break;
+        case 'pax':
+          increment = response === '1 person' ? 6 : response === '2 people' ? 5 : 4;
+          break;
+        case 'car':
+          increment = response === 'Yes' ? 3 : 1;
+          break;
+        case 'parking':
+          increment = response === 'Yes' ? 2 : 1;
+          break;
+        case 'movein':
+          try {
+            const moveDate = new Date(response);
+            const today = new Date();
+            const diffDays = Math.ceil((moveDate - today) / (1000 * 60 * 60 * 24));
+            if(diffDays <= 7) increment = 12;
+            else if(diffDays <= 30) increment = 10;
+            else if(diffDays <= 90) increment = 8;
+            else increment = 5;
+          } catch {
+            increment = 5;
+          }
+          break;
+        case 'tenancy':
+          increment = response === '12 months' ? 4 : 3;
+          break;
+        case 'gender':
+          increment = 2;
+          break;
+        case 'unit_spec':
+          increment = Array.isArray(response) ? response.length * 2 : 3;
+          break;
+        case 'workplace':
+          if(response && response.trim()) {
+            increment = 6;
+            const workplace = response.toLowerCase();
+            if(['klcc', 'kl sentral', 'cyberjaya', 'bangsar', 'mont kiara'].some(area => workplace.includes(area))) {
+              increment += 2;
+            }
+          } else {
+            increment = 1;
+          }
+          break;
+        case 'nationality':
+          if(response === 'Malaysian') increment = 8;
+          else if(response === 'Others') increment = 6;
+          else increment = 4;
+          break;
+        default:
+          increment = 3;
       }
-      else if(q.id === 'nationality'){ 
-        inc = r === 'Malaysian' ? q.weight * 0.8 : q.weight; 
-      }
-      else inc = q.weight * 0.8;
-      cur = Math.min(100, cur + inc); 
-      scores.push(Math.round(cur));
+      
+      currentScore = Math.min(100, currentScore + increment);
+      scores.push(Math.round(currentScore));
     });
+    
+    // Ensure final score matches the actual lead score
+    if(scores.length > 0) {
+      scores[scores.length - 1] = lead.score;
+    }
+    
     return {
       name: `Lead ${lead.leadNumber}`,
       scores, 
-      messages: ['Start','Area','Property','Budget','Pax','Car','Move-in','Tenancy','Gender','Unit','Workplace','Nationality','Final'], 
+      messages: ['Start','Area','Property','Budget','Pax','Car','Parking','Move-in','Tenancy','Gender','Unit','Workplace','Nationality','Final'], 
       details: `${lead.area} • Budget: RM${lead.budget} • Move-in: ${lead.movein} • Status: ${getLeadStatusText(lead.status)}`
     };
   }
   
-  const progression = [0, 15, 25, 40, 50, 60, Math.min(100, lead.score)];
+  // Fallback for leads without detailed responses - create realistic progression to actual score
+  const targetScore = lead.score;
+  const steps = 6;
+  const increment = targetScore / steps;
+  const progression = [0];
+  
+  for(let i = 1; i < steps; i++){
+    progression.push(Math.round(increment * i));
+  }
+  progression.push(targetScore); // Ensure final score is exact
+  
   return {
     name: `Lead ${lead.leadNumber}`,
     scores: progression,
