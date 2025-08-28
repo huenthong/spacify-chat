@@ -1152,13 +1152,18 @@ def score():
             p1 = float(pred[0])
             score = max(0.0, min(100.0, p1 * 100.0))
 
-        logger.info(f"Model OK — p1={p1:.4f} score={score:.2f}")
+        logger.info(
+            f"[MODEL USED] type={type(model).__name__} "
+            f"success_prob={success_probability:.4f} "
+            f"score={score:.2f}"
+        )
+
         return jsonify({
-            "score": round(score, 2),
-            "success_probability": round(p1, 4),
-            "timestamp": datetime.now().isoformat(),
-            "model_used": True,
-            "model_type": type(model).__name__
+            'score': round(score, 2),
+            'success_probability': round(success_probability, 4),
+            'timestamp': datetime.now().isoformat(),
+            'model_used': True,                     # <<<<<< add this
+            'model_type': type(model).__name__      # <<<<<< and this
         })
     except Exception as e:
         logger.exception(f"Scoring failed, using fallback: {e}")
