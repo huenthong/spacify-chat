@@ -717,7 +717,7 @@ function routeLeadAfterQualification(score){
     status: category==='cold' ? 'ai_handling' : 'assigned',
     timestamp: Date.now(),
     responses: {...chatUserResponses},
-    scoreHistory: [{ t: Date.now(), score }]
+    scoreHistory: [{ time: nowHHMMSS(), score }]
   };
   nextLeadId++;
 
@@ -757,7 +757,7 @@ function routeLeadAfterQualification(score){
     status: 'waiting_agent_response',
     messages: [{type:'system', text:`Assigned to ${pick.name} via round-robin`, time: nowHHMMSS()}],
     slaTimer: {type:'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0},
-    scoreHistory: [{ t: Date.now(), score: lead.score }]
+    scoreHistory: [{ time: nowHHMMSS(), score }] // keep chat & lead in sync
   };
   activeConversations[convId] = conv;
   agentConversations[pick.id].push(conv);
@@ -927,27 +927,28 @@ function sendSLAMessage(){
     const newScore = calculateScoreFromResponse(r, conv.score);
     conv.score = newScore;
 
-    // --- NEW: push to conversation score history (timestamp in ms) ---
-    if (!Array.isArray(conv.scoreHistory)) conv.scoreHistory = [];
-    conv.scoreHistory.push({ t: Date.now(), score: newScore });
+    // --- NEW: keep score history in both conv and lead
+    conv.scoreHistory = conv.scoreHistory || [];
+    conv.scoreHistory.push({ time: nowHHMMSS(), score: newScore });
 
-    // --- NEW: keep the corresponding lead in sync ---
-    const leadRef = allLeadsDatabase.find(l => l.leadNumber === conv.leadNumber);
+    const leadRef =
+      allLeadsDatabase.find(l => l.leadNumber === conv.leadNumber) ||
+      completedLeads.find(l => l.leadNumber === conv.leadNumber);
+
     if (leadRef) {
       leadRef.score = newScore;
-      if (!Array.isArray(leadRef.scoreHistory)) leadRef.scoreHistory = [];
-      leadRef.scoreHistory.push({ t: Date.now(), score: newScore });
+      leadRef.scoreHistory = leadRef.scoreHistory || [];
+      leadRef.scoreHistory.push({ time: nowHHMMSS(), score: newScore });
     }
 
-    // If score falls below 35 -> AI takeover and free capacity
+    // if the score drops below 35, hand over to AI (your original behavior)
     if (newScore < 35) {
-      conv.messages.push({ type:'system', text:`Score dropped to ${newScore}. Switching to AI for nurturing.`, time: nowHHMMSS() });
-      handoverToAI(conv);   // helper below
+      handoverToAI(conv);   // (this should exist in your file; if not you can keep your prior logic)
       return;
     }
 
-    // Normal path: append customer message and continue SLA timer
-    conv.messages.push({ type:'customer', text: r, time: nowHHMMSS(), score: newScore });
+    conv.messages.push({type:'customer', text:r, time:nowHHMMSS(), score:newScore});
+
 
     conv.slaTimer.timeRemaining = ONGOING_RESPONSE_TIMEOUT;
 
@@ -1179,64 +1180,40 @@ function markConversationAsDeal(){
 //let leadTrendChart = null;
 
 function showLeadChart(leadId){
-  const lead = allLeadsDatabase.find(l => l.id === leadId) 
-             || completedLeads.find(l => l.id === leadId);
-  if (!lead) return;
-
-  // Ensure we have history
-  const history = Array.isArray(lead.scoreHistory) ? lead.scoreHistory : [];
-  if (history.length === 0) {
-    // add a single point using current score so the chart has something
-    history.push({ t: Date.now(), score: lead.score ?? 0 });
-  }
-
-  // Build labels & data
-  const labels = history.map(p => new Date(p.t).toLocaleTimeString());
-  const data    = history.map(p => Math.max(0, Math.min(100, Number(p.score) || 0)));
-
-  // Create (or open) modal with canvas
-  let modal = document.getElementById('leadChartModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'leadChartModal';
-    modal.style.cssText = `
-      position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:2000;
-      display:flex; align-items:center; justify-content:center;
-    `;
-    modal.innerHTML = `
-      <div style="background:#fff; border-radius:14px; width:90%; max-width:900px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.25); position:relative;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px">
-          <h3 id="leadChartTitle" style="margin:0"></h3>
-          <button id="leadChartClose" style="border:none; background:transparent; font-size:22px; cursor:pointer">✕</button>
-        </div>
-        <canvas id="leadChartCanvas" height="280"></canvas>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    modal.querySelector('#leadChartClose').onclick = () => (modal.style.display='none');
-  }
-  modal.style.display = 'flex';
-  document.getElementById('leadChartTitle').textContent = `${lead.leadNumber} • Score trend`;
-
+  // open modal
+  const modal = document.getElementById('leadChartModal');
+  const title = document.getElementById('leadChartTitle');
   const ctx = document.getElementById('leadChartCanvas').getContext('2d');
 
-  // Destroy previous chart if exists
-  if (window.leadChart && typeof window.leadChart.destroy === 'function') {
-    window.leadChart.destroy();
-  }
+  // find the lead by id (works for ongoing and past lists)
+  const lead =
+    allLeadsDatabase.find(l => l.id === leadId) ||
+    completedLeads.find(l => l.id === leadId);
 
-  // Create chart
-  window.leadChart = new Chart(ctx, {
+  // title
+  title.textContent = `${lead?.leadNumber || leadId} • Score trend`;
+
+  // ensure we have at least one point
+  const history = (lead?.scoreHistory && lead.scoreHistory.length)
+    ? lead.scoreHistory
+    : [{ time: nowHHMMSS(), score: lead?.score ?? 0 }];
+
+  // x labels (times) & values
+  const labels = history.map(p => p.time);
+  const values = history.map(p => p.score);
+
+  // (re)draw
+  if (leadChart) { try { leadChart.destroy(); } catch(e){} }
+  leadChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [{
         label: 'ALPS Score',
-        data,
-        tension: 0.35,
-        fill: false,
+        data: values,
         borderWidth: 2,
-        pointRadius: 3
+        fill: false,
+        tension: 0.3
       }]
     },
     options: {
@@ -1244,13 +1221,15 @@ function showLeadChart(leadId){
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        y: { min: 0, max: 100, ticks: { stepSize: 10 } }
+        y: { min: 0, max: 100, ticks: { stepSize: 10 } },
+        x: { ticks: { autoSkip: true, maxTicksLimit: 6 } }
       },
-      plugins: {
-        legend: { display: true }
-      }
+      plugins: { legend: { display: true } }
     }
   });
+
+  // show modal
+  modal.style.display = 'block';
 }
 
 function getLeadStatusText(status){
@@ -1281,14 +1260,14 @@ function loadActiveConversation(conv){
 
 </script>
   
-<!-- Lead Chart Modal -->
-<div id="leadChartModal" class="modal">
-  <div class="modal-content">
-    <span class="close" onclick="document.getElementById('leadChartModal').style.display='none'">&times;</span>
-    <h3 id="leadChartTitle" style="margin-bottom:12px">Lead Progress</h3>
-    <canvas id="leadTrendCanvas" height="120"></canvas>
+<div id="leadChartModal" class="modal" style="display:none">
+  <div class="modal-content" style="width:80%;max-width:900px;height:520px;display:flex;flex-direction:column">
+    <span class="close" onclick="document.getElementById('leadChartModal').style.display='none'">×</span>
+    <h3 id="leadChartTitle" style="margin-bottom:10px"></h3>
+    <div style="flex:1"><canvas id="leadChartCanvas"></canvas></div>
   </div>
 </div>
+
   
 </body>
 </html>
