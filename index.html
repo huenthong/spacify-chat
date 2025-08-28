@@ -522,22 +522,32 @@ function refreshLeadsView(){
 
 /* ======= SERVER SCORING ======= */
 async function recomputeScoreFromFeatures(features){
-  if (MODEL_SOURCE !== 'server') return clientSideHeuristicScore(features);
+  if (MODEL_SOURCE !== 'server') {
+    console.log('[ALPS] Using CLIENT heuristic (MODEL_SOURCE!=server)');
+    return clientSideHeuristicScore(features);
+  }
   try {
+    console.log('[ALPS] POST →', SCORE_ENDPOINT, 'payload:', features);
     const response = await fetch(SCORE_ENDPOINT, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(features)
     });
-    if(!response.ok) throw new Error(`HTTP error ${response.status}`);
+    if(!response.ok) {
+      console.warn('[ALPS] Server returned non-OK', response.status);
+      throw new Error(`HTTP error ${response.status}`);
+    }
     const data = await response.json();
-    const score = clamp(Math.round(data.score ?? data.alps_score ?? 50),0,100);
+    console.log('[ALPS] Server response:', data);
+
+    const score = clamp(Math.round(data.score ?? data.alps_score ?? 50), 0, 100);
     return score;
   } catch(e){
-    // graceful fallback
+    console.error('[ALPS] Falling back to CLIENT heuristic due to:', e);
     return clientSideHeuristicScore(features);
   }
 }
+
 
 /* ======= SIMPLE CLIENT HEURISTIC (fallback only) ======= */
 function clientSideHeuristicScore(features){
