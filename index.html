@@ -682,6 +682,15 @@ async function handleChatAnswer(id, value){
   const score = await recomputeScoreFromFeatures(chatUserResponses);
   chatAlpsScore = score;
   updateScoreFloater(score);
+  // --- NEW: keep a temporary score history for the AI qualification path ---
+  let tmpLead = allLeadsDatabase.find(l => l.id === `lead${nextLeadId}`);
+  if (!tmpLead) {
+    tmpLead = { id:`lead${nextLeadId}`, leadNumber:`#${nextLeadId}`, scoreHistory: [] };
+    allLeadsDatabase.push(tmpLead);
+  }
+  tmpLead.score = score;
+  if (!Array.isArray(tmpLead.scoreHistory)) tmpLead.scoreHistory = [];
+  tmpLead.scoreHistory.push({ t: Date.now(), score });
 
   askNextQuestion();
 }
@@ -715,6 +724,7 @@ function routeLeadAfterQualification(score){
   if(category==='cold'){
     // keep with AI, visible in ongoing leads as AI handling
     lead.agent = 'AI Bot';
+    lead.scoreHistory = [{ t: Date.now(), score }];
     allLeadsDatabase.push(lead);
     refreshLeadsView();
     switchPage('chat'); // stay
@@ -732,6 +742,7 @@ function routeLeadAfterQualification(score){
   }
 
   lead.agent = pick.name;
+  lead.scoreHistory = [{ t: Date.now(), score }];
   allLeadsDatabase.push(lead);
 
   // create conversation
@@ -1165,54 +1176,67 @@ function markConversationAsDeal(){
 }
 
 /* ======= CHART (unchanged basics) ======= */
-let leadTrendChart = null;
+//let leadTrendChart = null;
 
 function showLeadChart(leadId){
-  // find the lead
-  const lead = allLeadsDatabase.find(l => l.id === leadId);
+  const lead = allLeadsDatabase.find(l => l.id === leadId) 
+             || completedLeads.find(l => l.id === leadId);
   if (!lead) return;
 
-  // prefer the active conversation’s history if present (it’s richer)
-  const activeConv = Object.values(activeConversations)
-    .find(c => c.leadNumber === lead.leadNumber);
-
-  const hist = (activeConv && Array.isArray(activeConv.scoreHistory) && activeConv.scoreHistory.length)
-    ? activeConv.scoreHistory
-    : (Array.isArray(lead.scoreHistory) ? lead.scoreHistory : []);
-
-  // safety: if still empty, seed with the current score/time
-  const series = hist.length ? hist : [{ t: Date.now(), score: lead.score }];
-
-  // labels & data
-  const labels = series.map(p => new Date(p.t).toLocaleTimeString());
-  const data    = series.map(p => p.score);
-
-  // open modal
-  const modal = document.getElementById('leadChartModal');
-  const title = document.getElementById('leadChartTitle');
-  title.textContent = `${lead.leadNumber} • Score trend`;
-  modal.style.display = 'block';
-
-  const ctx = document.getElementById('leadTrendCanvas').getContext('2d');
-
-  // destroy previous chart if any
-  if (leadTrendChart) {
-    leadTrendChart.destroy();
-    leadTrendChart = null;
+  // Ensure we have history
+  const history = Array.isArray(lead.scoreHistory) ? lead.scoreHistory : [];
+  if (history.length === 0) {
+    // add a single point using current score so the chart has something
+    history.push({ t: Date.now(), score: lead.score ?? 0 });
   }
 
-  // draw
-  leadTrendChart = new Chart(ctx, {
+  // Build labels & data
+  const labels = history.map(p => new Date(p.t).toLocaleTimeString());
+  const data    = history.map(p => Math.max(0, Math.min(100, Number(p.score) || 0)));
+
+  // Create (or open) modal with canvas
+  let modal = document.getElementById('leadChartModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'leadChartModal';
+    modal.style.cssText = `
+      position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:2000;
+      display:flex; align-items:center; justify-content:center;
+    `;
+    modal.innerHTML = `
+      <div style="background:#fff; border-radius:14px; width:90%; max-width:900px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.25); position:relative;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px">
+          <h3 id="leadChartTitle" style="margin:0"></h3>
+          <button id="leadChartClose" style="border:none; background:transparent; font-size:22px; cursor:pointer">✕</button>
+        </div>
+        <canvas id="leadChartCanvas" height="280"></canvas>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector('#leadChartClose').onclick = () => (modal.style.display='none');
+  }
+  modal.style.display = 'flex';
+  document.getElementById('leadChartTitle').textContent = `${lead.leadNumber} • Score trend`;
+
+  const ctx = document.getElementById('leadChartCanvas').getContext('2d');
+
+  // Destroy previous chart if exists
+  if (window.leadChart && typeof window.leadChart.destroy === 'function') {
+    window.leadChart.destroy();
+  }
+
+  // Create chart
+  window.leadChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [{
         label: 'ALPS Score',
         data,
-        tension: 0.25,
+        tension: 0.35,
         fill: false,
-        pointRadius: 3,
-        borderWidth: 2
+        borderWidth: 2,
+        pointRadius: 3
       }]
     },
     options: {
@@ -1222,11 +1246,12 @@ function showLeadChart(leadId){
       scales: {
         y: { min: 0, max: 100, ticks: { stepSize: 10 } }
       },
-      plugins: { legend: { display: true } }
+      plugins: {
+        legend: { display: true }
+      }
     }
   });
 }
-
 
 function getLeadStatusText(status){
   switch(status){
