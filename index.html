@@ -413,6 +413,7 @@ function renderAgentsGrid(){
     const card = e.target.closest('.agent-card');
     if(card) goToAgentConversations(card.dataset.agent);
   };
+  syncAgentCapacitiesToConversations();
 }
 
 function renderQueueFromAgents(){
@@ -450,6 +451,8 @@ function initializeDragAndDrop(){
     const ids = [...list.querySelectorAll('.queue-item')].map(x=>x.dataset.agent);
     agentOrder.splice(0, agentOrder.length, ...ids);
     renderAgentsGrid();
+    renderQueueFromAgents();
+    initializeDragAndDrop();
   });
 }
 
@@ -517,6 +520,11 @@ function refreshLeadsView(){
     const isOngoing = ['assigned','ai_handling','in_queue','ai_takeover','ongoing','waiting_agent_response','unassigned'].includes(lead.status);
     const container = isOngoing ? ongoingContainer : pastContainer;
     container.appendChild(renderLead(lead));
+  });
+
+  completedLeads.forEach(lead=>{
+    const el = renderLead(lead);
+    pastContainer.appendChild(el);
   });
 }
 
@@ -738,6 +746,7 @@ function routeLeadAfterQualification(score){
     messages: [{type:'system', text:`Assigned to ${pick.name} via round-robin`, time: nowHHMMSS()}],
     slaTimer: {type:'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0}
   };
+  scoreHistory: [{time: nowHHMMSS(), score: lead.score}],
   activeConversations[convId] = conv;
   agentConversations[pick.id].push(conv);
   refreshLeadsView();
@@ -896,6 +905,12 @@ function sendSLAMessage(){
     const r = replies[Math.floor(Math.random()*replies.length)];
     const newScore = calculateScoreFromResponse(r, conv.score);
     conv.score = newScore;
+    conv.scoreHistory = conv.scoreHistory || [];
+    conv.scoreHistory.push({time: nowHHMMSS(), score: newScore});
+    if(newScore < 35){
+      handoverToAI(conv);
+      return;
+    }
     conv.messages.push({type:'customer', text:r, time:nowHHMMSS(), score:newScore});
     conv.slaTimer.timeRemaining = ONGOING_RESPONSE_TIMEOUT;
     const u = document.createElement('div');
@@ -979,6 +994,28 @@ function reassignToMostAvailable(conv){
     conv.messages.push({type:'system', text:`No agent available.`, time: nowHHMMSS()});
   }
 }
+/* ======To AI=========*/
+function handoverToAI(conv){
+  // free current agent capacity
+  if(conv.agentId){
+    const arr = agentConversations[conv.agentId];
+    const ix = arr.findIndex(c=>c.id===conv.id);
+    if(ix>-1) arr.splice(ix,1);
+  }
+  conv.agentId = null;
+  conv.agentName = 'AI Bot';
+  conv.status = 'ai_takeover';
+  conv.slaTimer = null;
+  conv.messages.push({type:'system', text:`AI has taken over (score dropped below 35).`, time: nowHHMMSS()});
+
+  // reflect in leads list
+  const lead = allLeadsDatabase.find(l=>l.leadNumber===conv.leadNumber);
+  if(lead){ lead.agent='AI Bot'; lead.status='ai_takeover'; }
+
+  showAllConversations();
+  syncAgentCapacitiesToConversations();
+  refreshLeadsView();
+}
 
 /* ======= SLA ALERT ======= */
 let alertInterval=null;
@@ -1006,42 +1043,117 @@ function reassignConversation(){
   }
 }
 
+function escalateConversation(){
+  if(!selectedConversation) return;
+  const conv = activeConversations[selectedConversation];
+  if(!conv) return;
+
+  // free current agent capacity
+  if(conv.agentId){
+    const arr = agentConversations[conv.agentId];
+    const ix = arr.findIndex(c=>c.id===conv.id);
+    if(ix>-1) arr.splice(ix,1);
+  }
+
+  // attempt reassign to most-available
+  const next = getMostAvailableAgent();
+  if(next){
+    conv.agentId = next.id;
+    conv.agentName = next.name;
+    conv.status = 'waiting_agent_response';
+    conv.slaTimer = {type:'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0};
+    agentConversations[next.id].push(conv);
+    conv.messages.push({type:'system', text:`Escalated and reassigned to ${next.name} (most available).`, time: nowHHMMSS()});
+  }else{
+    conv.agentId = null;
+    conv.agentName = 'In Queue';
+    conv.status = 'in_queue';
+    conv.slaTimer = null;
+    conv.messages.push({type:'system', text:`Escalated: no agents available right now.`, time: nowHHMMSS()});
+  }
+
+  showAllConversations();
+  openSLAChat(conv.id);
+  syncAgentCapacitiesToConversations();
+}
+
 /* ======= DEAL (CLOSE WON) ======= */
 function markConversationAsDeal(){
   if(!selectedConversation) return;
   const conv = activeConversations[selectedConversation];
   if(!conv) return;
 
-  // move to Past Leads
-  const leadIdx = allLeadsDatabase.findIndex(l=>l.leadNumber===conv.leadNumber);
-  if(leadIdx>-1){
-    const lead = allLeadsDatabase[leadIdx];
-    lead.status='completed';
-    completedLeads.push(lead);
-    allLeadsDatabase.splice(leadIdx,1);
+  // move lead to completed list
+  const idx = allLeadsDatabase.findIndex(l=>l.leadNumber===conv.leadNumber);
+  let lead;
+  if(idx>-1){
+    lead = allLeadsDatabase[idx];
+    allLeadsDatabase.splice(idx,1);
+  } else {
+    // if not found (edge case), create a minimal lead object
+    lead = { id:`lead_${conv.leadNumber}`, leadNumber:conv.leadNumber, score:conv.score, area:conv.area, budget:'-', movein:'-', agent:conv.agentName };
   }
+  lead.status = 'completed';
+  completedLeads.push(lead);
 
-  // free agent capacity
+  // free capacity from agent
   if(conv.agentId){
     const arr = agentConversations[conv.agentId];
     const ix = arr.findIndex(c=>c.id===conv.id);
     if(ix>-1) arr.splice(ix,1);
   }
+
+  // remove from active conversations
   delete activeConversations[selectedConversation];
   selectedConversation = null;
 
-  // UI reset
+  // UI
   showAllConversations();
-  document.getElementById('slaMessages').innerHTML = `<div style="text-align:center;color:#7f8c8d;margin-top:40px"><p>Conversation closed as <strong>Deal</strong>. Capacity freed.</p></div>`;
+  document.getElementById('slaMessages').innerHTML =
+    `<div style="text-align:center;color:#7f8c8d;margin-top:40px">
+       <p>Conversation closed as <strong>Deal</strong>. Capacity freed.</p>
+     </div>`;
   document.getElementById('slaInputArea').style.display='none';
   document.getElementById('dealBtn').style.display='none';
   refreshLeadsView();
+  syncAgentCapacitiesToConversations();
 }
 
 /* ======= CHART (unchanged basics) ======= */
+let leadTrendChart = null;
+
 function showLeadChart(leadId){
-  alert(`Lead chart view for ${leadId} (kept minimal here).`);
+  // Find by id in current lists
+  const lead = allLeadsDatabase.find(l=>l.id===leadId) || completedLeads.find(l=>l.id===leadId);
+
+  // try to pull score history from active conversation (if any)
+  const conv = Object.values(activeConversations).find(c => c.leadNumber === (lead?.leadNumber || ''));
+  const history = (conv && conv.scoreHistory?.length) ? conv.scoreHistory
+                : [{time: nowHHMMSS(), score: lead?.score || 0}];
+
+  // open modal
+  document.getElementById('leadChartTitle').textContent =
+    `Lead ${lead?.leadNumber || leadId} • Score trend`;
+  document.getElementById('leadChartModal').style.display = 'block';
+
+  const ctx = document.getElementById('leadTrendCanvas').getContext('2d');
+  const labels = history.map(h=>h.time);
+  const data = history.map(h=>h.score);
+
+  if(leadTrendChart){ leadTrendChart.destroy(); }
+  leadTrendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{ label:'ALPS Score', data, fill:false, tension:0.25 }]
+    },
+    options: {
+      animation:false,
+      scales:{ y:{ min:0, max:100 } }
+    }
+  });
 }
+
 function getLeadStatusText(status){
   switch(status){
     case 'assigned': return 'Assigned';
@@ -1067,6 +1179,16 @@ function loadActiveConversation(conv){
   if (!id) return;
   openSLAChat(id); // delegate to your existing renderer
 }
+
+<!-- Lead Chart Modal -->
+<div id="leadChartModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="document.getElementById('leadChartModal').style.display='none'">&times;</span>
+    <h3 id="leadChartTitle" style="margin-bottom:12px">Lead Progress</h3>
+    <canvas id="leadTrendCanvas" height="120"></canvas>
+  </div>
+</div>
+
 </script>
 </body>
 </html>
