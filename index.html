@@ -1313,7 +1313,7 @@ function markDeal(){
   selectedConversation = null;
   document.getElementById('slaInputArea').style.display = 'none';
   refreshCurrentListView();
-
+  
   setTimeout(() => {
     document.getElementById('slaMessages').innerHTML = `<div style="text-align:center;color:#7f8c8d;margin-top:40px"><h3>💬 SLA Chat Monitor</h3><p>Select a conversation from the left to view and manage the chat</p></div>`;
   }, 2000);
