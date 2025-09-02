@@ -1784,35 +1784,237 @@ function initializeChat(){
   setTimeout(() => askQuestion(0), 400);
 }
 
-function askQuestion(i){
-  if(i >= questions.length){ return finalizeLead(); }
-  const q = questions[i]; 
-  chatCurrentStep = i; 
-  
-  console.log('Asking question', i, ':', q.text);
-  
-  showTyping();
-  setTimeout(() => {
-    hideTyping();
-    let html = `<div>${q.text}</div>`;
-    if(q.type === 'select'){
-      html += `<div class="options-container">` +
-        q.options.map(o => `<div class="option-button" onclick="selectOption('${q.id}','${o.replace(/'/g,"\\'")}')">${o}</div>`).join('') +
-        `</div>`;
-    } else if(q.type === 'property_select'){
-      const props = getPropertiesForArea(chatUserResponses.area || 'KL/Selangor').slice(0, 12);
-      html += `<div class="property-grid">` + 
-        props.map(p => `<div class="property-item" onclick="selectOption('${q.id}','${p.replace(/'/g,"\\'")}')">${p}</div>`).join('') + 
-        `</div>`;
-    } else if(q.type === 'input'){
-      html += `<input class="input-field" type="text" placeholder="${q.placeholder}" onkeypress="handleInputKeypress(event,'${q.id}')">`;
-    } else if(q.type === 'date'){
-      html += `<input class="input-field" type="date" onchange="handleDateChange(event,'${q.id}')">`;
-    } else if(q.type === 'multiple'){
-      html += createMultipleChoiceOptions(q.id, q.options);
+function askQuestion(qIndex) {
+  const q = questions[qIndex];
+  chatCurrentStep = qIndex;
+  if (!q) return;
+
+  const box = document.getElementById('chatBox');
+  const wrap = document.createElement('div');
+  wrap.className = 'message message-bot';
+  box.appendChild(wrap);
+
+  // Helper to scroll and focus last input
+  const afterRender = (focusId) => {
+    box.scrollTop = box.scrollHeight;
+    if (focusId) {
+      const el = document.getElementById(focusId);
+      if (el) el.focus();
     }
-    addMessage(html, 'bot');
-  }, 600);
+  };
+
+  // ====== SELECT ======
+  if (q.type === 'select') {
+    wrap.innerHTML = `
+      <div style="margin-bottom:8px">${q.text}</div>
+      <div class="chip-list" style="display:flex;gap:8px;flex-wrap:wrap">
+        ${q.options.map(opt => `<button class="chip" data-v="${opt}">${opt}</button>`).join('')}
+      </div>
+    `;
+    afterRender();
+
+    wrap.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.getAttribute('data-v');
+        appendUserMessage(val);
+        chatUserResponses[q.id] = val;
+        recalcScoreAndAdvance(q.id, val);
+      });
+    });
+    return;
+  }
+
+  // ====== INPUT (free text) ======
+  else if (q.type === 'input') {
+    const inputId = `in_${q.id}`, btnId = `btn_${q.id}`;
+    wrap.innerHTML = `
+      <div style="margin-bottom:8px">${q.text}</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="${inputId}" type="text" placeholder="${q.placeholder ?? ''}"
+               style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid #ddd" />
+        <button id="${btnId}" class="btn-send">OK</button>
+      </div>
+    `;
+    afterRender(inputId);
+
+    const input = document.getElementById(inputId);
+    const btn   = document.getElementById(btnId);
+
+    const submit = () => {
+      const val = (input.value || '').trim();
+      if (!val) return;
+      appendUserMessage(val);
+
+      // Optional special-casing
+      if (q.id === 'budget') {
+        const n = parseInt(val.replace(/[^\d]/g,''), 10);
+        if (Number.isFinite(n)) chatUserResponses[q.id] = n; else chatUserResponses[q.id] = val;
+      } else {
+        chatUserResponses[q.id] = val;
+      }
+      recalcScoreAndAdvance(q.id, val);
+    };
+
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    btn.addEventListener('click', submit);
+    return;
+  }
+
+  // ====== PROPERTY SELECT (your custom renderer with search/typeahead) ======
+  else if (q.type === 'property_select') {
+    const listId = `list_${q.id}`, inId = `search_${q.id}`;
+    wrap.innerHTML = `
+      <div style="margin-bottom:8px">${q.text}</div>
+      <input id="${inId}" type="text" placeholder="Type to search"
+             style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #ddd;margin-bottom:8px"/>
+      <div id="${listId}" style="display:flex;gap:8px;flex-wrap:wrap;max-height:180px;overflow:auto">
+        ${PROPERTIES.map(p => `<button class="chip" data-v="${p}">${p}</button>`).join('')}
+      </div>
+    `;
+    afterRender(inId);
+
+    const list = document.getElementById(listId);
+    const input = document.getElementById(inId);
+
+    const pick = (val) => {
+      appendUserMessage(val);
+      chatUserResponses[q.id] = val;
+      recalcScoreAndAdvance(q.id, val);
+    };
+
+    list.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => pick(btn.getAttribute('data-v')));
+    });
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const val = (input.value || '').trim();
+        if (!val) return;
+        pick(val);
+      }
+    });
+    input.addEventListener('input', () => {
+      const term = (input.value || '').toLowerCase();
+      list.querySelectorAll('.chip').forEach(b => {
+        const show = b.textContent.toLowerCase().includes(term);
+        b.style.display = show ? '' : 'none';
+      });
+    });
+    return;
+  }
+
+  // ====== NUMBER (NEW) ======
+  else if (q.type === 'number') {
+    const inputId = `num_${q.id}`, btnId = `btn_${q.id}`;
+    wrap.innerHTML = `
+      <div style="margin-bottom:8px">${q.text}</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="${inputId}" type="number"
+               min="${q.min ?? 0}" max="${q.max ?? 100000}" step="${q.step ?? 1}"
+               placeholder="${q.placeholder ?? ''}"
+               style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid #ddd" />
+        <button id="${btnId}" class="btn-send">OK</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        ${(q.quick || [500,700,900,1200]).map(v => `
+          <button class="chip" data-v="${v}" style="padding:6px 10px;border-radius:16px;border:1px solid #ddd;background:#fff;cursor:pointer">${v}</button>
+        `).join('')}
+      </div>
+    `;
+    afterRender(inputId);
+
+    const input = document.getElementById(inputId);
+    const btn   = document.getElementById(btnId);
+
+    const submit = () => {
+      const raw = (input.value || '').trim();
+      const n = parseInt(raw.replace(/[^\d]/g,''), 10);
+      if (!Number.isFinite(n)) return;
+      appendUserMessage(String(n));
+      chatUserResponses[q.id] = n;
+      recalcScoreAndAdvance(q.id, n);
+    };
+
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    btn.addEventListener('click', submit);
+
+    wrap.querySelectorAll('.chip').forEach(ch => {
+      ch.addEventListener('click', () => {
+        const v = ch.getAttribute('data-v');
+        document.getElementById(inputId).value = v;
+        submit();
+      });
+    });
+    return;
+  }
+
+  // ====== DATE (NEW) ======
+  else if (q.type === 'date') {
+    const inputId = `date_${q.id}`, btnId = `btn_${q.id}`;
+    wrap.innerHTML = `
+      <div style="margin-bottom:8px">${q.text}</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="${inputId}" type="date"
+               style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid #ddd" />
+        <button id="${btnId}" class="btn-send">OK</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button class="chip" data-days="7">This week</button>
+        <button class="chip" data-days="30">This month</button>
+        <button class="chip" data-days="60">Next 2 months</button>
+        <button class="chip" data-days="90">Next 3 months</button>
+      </div>
+    `;
+    afterRender(inputId);
+
+    const input = document.getElementById(inputId);
+    const btn   = document.getElementById(btnId);
+
+    const submit = () => {
+      const val = (input.value || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return; // require YYYY-MM-DD
+      appendUserMessage(val);
+      chatUserResponses[q.id] = val;
+      recalcScoreAndAdvance(q.id, val);
+    };
+
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    btn.addEventListener('click', submit);
+
+    // Quick chips: today + N days -> ISO date
+    wrap.querySelectorAll('.chip').forEach(ch => {
+      ch.addEventListener('click', () => {
+        const days = parseInt(ch.getAttribute('data-days'), 10);
+        const dt = new Date();
+        dt.setDate(dt.getDate() + days);
+        const iso = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+        input.value = iso;
+        submit();
+      });
+    });
+    return;
+  }
+
+  // ====== Fallback (unknown type) ======
+  else {
+    wrap.innerHTML = `<div>${q.text}</div>`;
+    afterRender();
+  }
+}
+
+function handleNumberSubmit(q, rawVal) {
+  const n = parseInt(String(rawVal).replace(/[^\d]/g,''), 10);
+  if (!Number.isFinite(n)) return;
+  appendUserMessage(n.toString());
+  chatUserResponses[q.id] = n;
+  recalcScoreAndAdvance(q.id, n);
+}
+
+function handleDateSubmit(q, isoDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return;
+  appendUserMessage(isoDate);
+  chatUserResponses[q.id] = isoDate;
+  recalcScoreAndAdvance(q.id, isoDate);
 }
 
 function createMultipleChoiceOptions(id, opts){
