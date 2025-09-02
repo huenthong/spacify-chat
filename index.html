@@ -534,116 +534,56 @@ function clientSideHeuristicScore(features) {
 
 // === Normalization: turn raw answers => model features ===
 function buildFeaturePayload(raw) {
-  // Helpers
   const now = new Date();
   const toInt = (v, d=0) => {
-    const n = parseInt(String(v).replace(/[^\d]/g,''), 10);
+    const n = parseInt(String(v ?? '').replace(/[^\d]/g,''), 10);
     return Number.isFinite(n) ? n : d;
   };
 
-  // days_to_move_in
   let days_to_move_in = null;
   if (raw.move_in_date) {
     const dt = new Date(raw.move_in_date);
     days_to_move_in = Math.max(0, Math.ceil((dt - now) / (1000*60*60*24)));
   }
 
-  // tenancy_months
   const tenancy_months = toInt(raw.tenancy_months, 0);
-
-  // pax
-  let pax = 1;
-  if (raw.pax === "2") pax = 2;
-  else if (raw.pax === "3+") pax = 3;
-
-  // budget_num
+  let pax = 1; if (raw.pax === "2") pax = 2; else if (raw.pax === "3+") pax = 3;
   const budget_num = toInt(raw.budget, 0);
 
-  // user type (one-hot-ish small map)
-  const user_type_map = {
-    "Working professional":"working",
-    "Student":"student",
-    "Intern / Trainee":"intern",
-    "Other":"other"
-  };
+  const user_type_map = {"Working professional":"working","Student":"student","Intern / Trainee":"intern","Other":"other"};
+  const room_type_map = {"Private room":"private","Master w/ bathroom":"master","Shared room":"shared","Studio / whole unit":"studio"};
+  const bedroom_type_map = {"Single bed":"single","Queen/King":"queen_king","Bunk beds":"bunk","No preference":"na"};
 
-  // room / bedroom categories
-  const room_type_map = {
-    "Private room":"private",
-    "Master w/ bathroom":"master",
-    "Shared room":"shared",
-    "Studio / whole unit":"studio"
-  };
-  const bedroom_type_map = {
-    "Single bed":"single",
-    "Queen/King":"queen_king",
-    "Bunk beds":"bunk",
-    "No preference":"na"
-  };
-
-  // area/property simple passthrough; workplace keyword flag
   const workplace = (raw.workplace || "").toLowerCase();
-  const workplace_hot = ["klcc","kl sentral","cyberjaya","bangsar","mont kiara"]
-    .some(k => workplace.includes(k));
+  const workplace_hot = ["klcc","kl sentral","cyberjaya","bangsar","mont kiara"].some(k => workplace.includes(k));
 
-  // contact provided?
   const contact_raw = (raw.contact || "").trim();
-  const has_contact = contact_raw.length >= 5; // simple presence flag
+  const has_contact = contact_raw.length >= 5;
 
-  // lead_source compact
-  const lead_src_map = {
-    "Facebook":"facebook","Instagram":"instagram","Portal (iProperty/PropertyGuru)":"portal",
-    "Google":"google","Referral":"referral","Walk-in":"walkin","WhatsApp":"whatsapp","Other":"other"
-  };
+  const lead_src_map = {"Facebook":"facebook","Instagram":"instagram","Portal (iProperty/PropertyGuru)":"portal","Google":"google","Referral":"referral","Walk-in":"walkin","WhatsApp":"whatsapp","Other":"other"};
 
-  // nationality binary
   const is_malaysian = raw.nationality === "Malaysian";
-
-  // car/parking booleans
   const has_car = raw.has_car === "Yes";
   const need_parking = raw.need_parking === "Yes";
 
-  // time-of-day context (RFM-ish helper signals used in your heuristics)
   const hr = now.getHours();
-  const dow = now.getDay(); // 0=Sun
+  const dow = now.getDay();
   const is_business_hours = hr >= 9 && hr <= 17;
   const is_weekend = (dow === 0 || dow === 6);
 
-  // FINAL: the payload we POST to SCORE_ENDPOINT
-  const features = {
-    // core structured
+  return {
     area: raw.area || null,
     property: raw.property || null,
-    budget_num,
-    pax,
-    days_to_move_in,
-    tenancy_months,
-
-    // categorical folds
+    budget_num, pax, days_to_move_in, tenancy_months,
     user_type: user_type_map[raw.user_type] || null,
     room_type: room_type_map[raw.room_type] || null,
     bedroom_type: bedroom_type_map[raw.bedroom_type] || null,
     lead_source: lead_src_map[raw.lead_source] || null,
-
-    // booleans
-    has_car,
-    need_parking,
-    is_malaysian,
-    has_contact,
-
-    // text anchor + lightweight feature
-    workplace: raw.workplace || null,
-    workplace_hot,  // 1 if popular employment/commute hubs
-
-    // temporal context flags (cheap to use if your model includes them)
-    is_business_hours,
-    is_weekend,
-
-    // optional raw for server-side featurizers (ok to send as-is)
+    has_car, need_parking, is_malaysian, has_contact,
+    workplace: raw.workplace || null, workplace_hot,
+    is_business_hours, is_weekend,
     raw_contact: contact_raw
   };
-
-  return features;
 }
 
 async function recomputeScoreFromFeatures(features) {
@@ -2093,24 +2033,19 @@ function submitMultipleChoice(id){
 }
 
 function recalcScoreAndAdvance(lastId, val){
-  // 1) current raw answers
   const raw = {...chatUserResponses};
-
-  // 2) build normalized features for the model
   const features = buildFeaturePayload(raw);
 
   console.log('Recalculating score with normalized features:', features);
   console.log('Current step:', chatCurrentStep, 'Last answered:', lastId, 'Value:', val);
 
-  // 3) server score (fallback to client heuristic with normalized fields)
   recomputeScoreFromFeatures(features).then(score => {
-    console.log('New score calculated (server):', score);
     chatAlpsScore = Math.max(0, Math.min(100, score));
     updateChatScoreDisplay();
     setTimeout(() => askQuestion(chatCurrentStep + 1), 600);
   }).catch(error => {
     console.error('Score calculation failed, using client heuristic:', error);
-    chatAlpsScore = clientSideHeuristicScore(features);  // pass normalized features here too
+    chatAlpsScore = clientSideHeuristicScore(features);
     updateChatScoreDisplay();
     setTimeout(() => askQuestion(chatCurrentStep + 1), 600);
   });
