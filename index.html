@@ -212,7 +212,7 @@
             </div>
           </div>
 
-          <div class="chat-messages" id="chatMessages">
+          <div class="chat-messages" id="chatBox">
             <div class="typing-indicator" id="typingIndicator">
               <div class="typing-dots">
                 <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
@@ -671,7 +671,7 @@ function switchPage(pageName){
   document.getElementById('pageSubtitle').textContent=s[pageName];
   
   if(pageName==='chat'){ 
-    setTimeout(initializeChat,200); 
+    setTimeout(startChatFlow,200); 
     document.getElementById('scoreFloater').style.display = 'block';
   } else {
     document.getElementById('scoreFloater').style.display = 'none';
@@ -690,6 +690,20 @@ function startRealTimeLoop(){
     tickSLATimers();
     if(currentPage === 'leads') refreshLeadsView();
   },1000);
+}
+
+function startChatFlow() {
+  // reset state
+  chatUserResponses = {};
+  chatCurrentStep = 0;
+
+  // clear the container and kick off first question
+  const box = document.getElementById('chatBox');
+  if (box) box.innerHTML = `
+    <div class="typing-indicator" id="typingIndicator">
+      <div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+    </div>`;
+  setTimeout(() => askQuestion(0), 100);
 }
 
 /* ======= AGENTS ======= */
