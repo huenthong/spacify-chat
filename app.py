@@ -53,29 +53,103 @@ load_model_artifacts()
 # -------------------------
 # Feature prep
 # -------------------------
+# ---------- Normalizers ----------
+def _to_float(x, default=0.0):
+    try:
+        if x is None: return default
+        if isinstance(x, (int, float)): return float(x)
+        s = str(x).strip()
+        if not s: return default
+        return float(s)
+    except Exception:
+        return default
+
+def normalize_pax(v) -> int:
+    """Accepts 1/2/3 numeric OR '1 person'/'2 people'/'More than 2' strings."""
+    if isinstance(v, (int, float)):
+        n = int(v)
+        return 1 if n <= 1 else 2 if n == 2 else 3
+    if isinstance(v, str):
+        t = v.strip().lower()
+        if t.startswith("1"): return 1
+        if t.startswith("2"): return 2
+        if "more" in t or "3" in t: return 3
+    return 1
+
+_LEAD_MAP = {
+    "facebook":"Facebook",
+    "instagram":"Instagram",
+    "whatsapp":"WhatsApp",
+    "google":"Google_Search",
+    "google_search":"Google_Search",
+    "google_ads":"Google_Ads",
+    "website":"Website",
+    "portal":"Website",     # iProperty/PropertyGuru -> treat as Website
+    "referral":"Referral",
+    "walk_in":"Walk_In",
+    "walkin":"Walk_In",
+    "email":"Email",
+    "phone":"Phone_Call",
+    "phone_call":"Phone_Call",
+    "other":"Unknown",
+    "unknown":"Unknown",
+}
+
+def normalize_lead_source(s: str) -> str:
+    if not s: return "Website"
+    key = str(s).strip().lower()
+    return _LEAD_MAP.get(key, "Unknown")
+
+def normalize_nationality(nationality: str = None,
+                          is_malaysian: bool = None,
+                          detail: str = "") -> str:
+    """
+    Returns a country label suitable for one-hots used in training.
+    Harmonizes 'Malaysia'/'Malaysian' and accepts an 'Others' detail.
+    """
+    if is_malaysian is True:
+        return "Malaysia"
+    if nationality:
+        n = nationality.strip()
+        if n.lower() in ("malaysia", "malaysian"):
+            return "Malaysia"
+        if n == "Others" and detail:
+            return detail.title()
+        return n
+    return "Other"
+                              
 def prepare_features(form_data):
     """
-    Build a single-row DataFrame with the engineered / one-hot features
-    your RandomForest was trained on.
+    Build a single-row DataFrame aligned to your training feature space.
+
+    Accepts payloads from index_latest.html buildFeaturePayload(...) directly:
+      area, property, budget_num, pax, days_to_move_in, tenancy_months,
+      user_type, room_type, bedroom_type, lead_source, has_car, need_parking,
+      is_malaysian, has_contact, workplace, workplace_hot, is_business_hours,
+      is_weekend, raw_contact
+
+    Also accepts the older names:
+      budget, pax("1 person"/"2 people"/"More than 2"), movein (YYYY-MM-DD),
+      car("Yes"/"No"), parking("Yes"/"No"/"Unknown"), nationality, gender, etc.
     """
     current_date = datetime.now()
     feats = {}
 
-    # Core numeric
-    try:
-        budget = float(form_data.get("budget", 800) or 800)
-    except Exception:
-        budget = 800.0
+    # ------- Core numeric -------
+    # Budget: prefer budget_num from new UI, else fallback to budget
+    budget = _to_float(form_data.get("budget_num",
+                    form_data.get("budget", 800.0)), 800.0)
     feats["Budget"] = budget
     feats["Rental Proposed"] = budget
 
-    pax_map = {"1 person": 1, "2 people": 2, "More than 2": 3}
-    feats["No of Pax"] = pax_map.get(form_data.get("pax", "1 person"), 1)
+    # Pax: accept number 1/2/3 or string "1 person" etc.
+    feats["No of Pax"] = normalize_pax(form_data.get("pax", 1))
 
-    feats["contact_hour"] = current_date.hour
+    # Contact time
+    feats["contact_hour"]  = current_date.hour
     feats["contact_month"] = current_date.month
 
-    # Engineered
+    # ------- Engineered: Budget buckets -------
     if budget == 0:
         feats["Budget_Category_Encoded"] = 0
     elif budget < 500:
@@ -87,35 +161,57 @@ def prepare_features(form_data):
     else:
         feats["Budget_Category_Encoded"] = 4
 
+    # ------- Engineered: Move urgency (from days_to_move_in OR dates) -------
     feats["Move_Urgency_Encoded"] = 0
-    movein = form_data.get("movein")
-    if movein:
+    dd = None
+
+    # (a) if client already sent computed days_to_move_in
+    if form_data.get("days_to_move_in") is not None:
         try:
-            move_dt = datetime.strptime(movein, "%Y-%m-%d")
-            dd = (move_dt - current_date).days
-            if dd <= 30:
-                feats["Move_Urgency_Encoded"] = 1
-            elif dd <= 90:
-                feats["Move_Urgency_Encoded"] = 2
-            else:
-                feats["Move_Urgency_Encoded"] = 3
+            dd = int(float(form_data["days_to_move_in"]))
         except Exception:
-            feats["Move_Urgency_Encoded"] = 0
+            dd = None
 
-    feats["Is_Weekend"] = 1 if current_date.weekday() >= 5 else 0
-    feats["Is_Business_Hours"] = 1 if 9 <= current_date.hour <= 17 else 0
+    # (b) else parse date from new key move_in_date or old key movein
+    if dd is None:
+        date_str = form_data.get("move_in_date") or form_data.get("movein")
+        if date_str:
+            try:
+                move_dt = datetime.strptime(date_str, "%Y-%m-%d")
+                dd = (move_dt - current_date).days
+            except Exception:
+                dd = None
 
-    # One-hot categories (prefixes used in your training)
-    # Customer Journey
-    journey_categories = [
-        "Information_Collection","Property_Inquiry","Viewing_Arrangement",
-        "Room_Selection","Property_Viewing","Booking_Process","Other","Unknown"
+    if dd is not None:
+        if dd <= 30:  feats["Move_Urgency_Encoded"] = 1
+        elif dd <= 90: feats["Move_Urgency_Encoded"] = 2
+        else:          feats["Move_Urgency_Encoded"] = 3
+
+    # ------- Temporal flags: allow client overrides -------
+    is_biz = form_data.get("is_business_hours")
+    is_wend = form_data.get("is_weekend")
+
+    if isinstance(is_biz, bool):
+        feats["Is_Business_Hours"] = 1 if is_biz else 0
+    else:
+        feats["Is_Business_Hours"] = 1 if 9 <= current_date.hour <= 17 else 0
+
+    if isinstance(is_wend, bool):
+        feats["Is_Weekend"] = 1 if is_wend else 0
+    else:
+        feats["Is_Weekend"] = 1 if current_date.weekday() >= 5 else 0
+
+    # ------- Lead Source (one-hots your RF used) -------
+    lead_categories = [
+        "Facebook","Google_Search","Google_Ads","Instagram","WhatsApp",
+        "Website","Referral","Walk_In","Email","Phone_Call","Unknown"
     ]
-    cur_journey = "Unknown"
-    for c in journey_categories:
-        feats[f"Customer_Journey_Clean_{c}"] = 1 if c == cur_journey else 0
+    incoming_lead = form_data.get("lead_source") or form_data.get("leadSource") or "Website"
+    cur_source = normalize_lead_source(incoming_lead)
+    for c in lead_categories:
+        feats[f"Lead_Source_Standard_{c}"] = 1 if c == cur_source else 0
 
-    # Gender
+    # ------- Gender (optional in UI; safe default) -------
     gender_categories = ["Male","Female","Mixed","Unknown"]
     cur_gender = form_data.get("gender", "Unknown")
     if cur_gender not in gender_categories:
@@ -123,65 +219,46 @@ def prepare_features(form_data):
     for c in gender_categories:
         feats[f"Gender_Clean_{c}"] = 1 if c == cur_gender else 0
 
-    # Lead Source
-    lead_categories = [
-        "Facebook","Google_Search","Google_Ads","Instagram","WhatsApp",
-        "Website","Referral","Walk_In","Email","Phone_Call","Unknown"
-    ]
-    cur_source = "Website"
-    for c in lead_categories:
-        feats[f"Lead_Source_Standard_{c}"] = 1 if c == cur_source else 0
-
-    # Room Type
-    room_categories = ["Studio","1_Bedroom","2_Bedroom","3_Bedroom","Other","Unknown"]
-    rt = str(form_data.get("room_type", "Unknown") or "Unknown")
-    rtl = rt.lower()
-    if "studio" in rtl:
-        cur_room = "Studio"
-    elif "1" in rt and "bed" in rtl:
-        cur_room = "1_Bedroom"
-    elif "2" in rt and "bed" in rtl:
-        cur_room = "2_Bedroom"
-    elif "3" in rt and "bed" in rtl:
-        cur_room = "3_Bedroom"
+    # ------- Optional: binary flags the model may have seen -------
+    # These are safe; if feature_names doesn't include them they’ll be dropped later.
+    # Car / Parking
+    has_car = form_data.get("has_car")
+    if isinstance(has_car, bool):
+        feats["Transportation_Car"] = 1 if has_car else 0
     else:
-        cur_room = "Unknown"
-    for c in room_categories:
-        feats[f"Room_Type_Standard_{c}"] = 1 if c == cur_room else 0
+        car_str = str(form_data.get("car", "")).strip().lower()
+        feats["Transportation_Car"] = 1 if car_str == "yes" else 0
 
-    # Transportation
-    transport_categories = ["Car","Public Transport","Both","Unknown"]
-    cur_transport = "Car" if form_data.get("car") == "Yes" else "Unknown"
-    for c in transport_categories:
-        feats[f"Transportation_{c}"] = 1 if c == cur_transport else 0
+    need_parking = form_data.get("need_parking")
+    if isinstance(need_parking, bool):
+        feats["Parking_Needed"] = 1 if need_parking else 0
+    else:
+        park_str = str(form_data.get("parking", "")).strip().lower()
+        feats["Parking_Needed"] = 1 if park_str == "yes" else 0
 
-    # Parking
-    parking_categories = ["Yes","No","Unknown"]
-    cur_park = form_data.get("parking", "Unknown")
-    for c in parking_categories:
-        feats[f"Parking_{c}"] = 1 if c == cur_park else 0
+    # Nationality (normalize Malaysia/Malaysian/Others+detail)
+    nat = normalize_nationality(
+        form_data.get("nationality"),
+        form_data.get("is_malaysian"),
+        form_data.get("nationality_detail", "")
+    )
+    feats["Is_Malaysian"] = 1 if nat == "Malaysia" else 0
 
-    # Day of week
-    weekdays = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    cur_wd = weekdays[current_date.weekday()]
-    for d in weekdays:
-        feats[f"contact_dayofweek_{d}"] = 1 if d == cur_wd else 0
+    # Contact present
+    if "has_contact" in form_data:
+        feats["Has_Contact"] = 1 if bool(form_data.get("has_contact")) else 0
 
-    # Nationality (grouped)
-    nationality_countries = [
-        "Malaysia","Indonesia","India","Sudan","Zimbabwe","China",
-        "Thailand","Myanmar","Pakistan","Yemen","Other"
-    ]
-    nat = form_data.get("nationality", "Other")
-    if nat == "Others" and form_data.get("nationality_detail"):
-        detail = str(form_data["nationality_detail"]).title()
-        nat = detail if detail in nationality_countries else "Other"
-    for c in nationality_countries:
-        feats[f"Nationality_Standard_Grouped_{c}"] = 1 if c == nat else 0
+    # Workplace hot spot
+    if "workplace_hot" in form_data:
+        feats["Workplace_Hot"] = 1 if bool(form_data.get("workplace_hot")) else 0
 
+    # (Optional) tenancy months could be useful if in training
+    if "tenancy_months" in form_data:
+        feats["Tenancy_Months"] = _to_float(form_data.get("tenancy_months"), 0)
+
+    # -------- Build DataFrame and align to training feature order --------
     df = pd.DataFrame([feats])
 
-    # Align to training feature order (very important!)
     if feature_names:
         # add any missing columns with 0
         for col in feature_names:
@@ -194,7 +271,7 @@ def prepare_features(form_data):
         # reorder
         df = df[feature_names]
 
-    # Ensure numeric dtypes
+    # Ensure numeric dtype (one-hots will become 0/1)
     for c in df.columns:
         if df[c].dtype == "object":
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
@@ -206,31 +283,52 @@ def prepare_features(form_data):
 # -------------------------
 def calculate_fallback_score(form_data):
     score = 50
-    try:
-        b = float(form_data.get("budget", 0) or 0)
-        if b >= 1200: score += 20
-        elif b >= 800: score += 15
-        elif b >= 600: score += 10
-    except Exception:
-        pass
 
-    if form_data.get("nationality") == "Malaysian":
+    # Budget: budget_num (new) or budget (old)
+    b = _to_float(form_data.get("budget_num", form_data.get("budget", 0)), 0)
+    if b >= 1200: score += 20
+    elif b >= 800: score += 15
+    elif b >= 600: score += 10
+
+    # Nationality: accept is_malaysian True or nationality ~ 'Malaysia/Malaysian'
+    nat = normalize_nationality(
+        form_data.get("nationality"),
+        form_data.get("is_malaysian"),
+        form_data.get("nationality_detail", "")
+    )
+    if nat == "Malaysia":
         score += 15
 
-    mv = form_data.get("movein")
-    if mv:
+    # Move-in: prefer provided days_to_move_in, else parse date
+    dd = None
+    if form_data.get("days_to_move_in") is not None:
         try:
-            dd = (datetime.strptime(mv, "%Y-%m-%d") - datetime.now()).days
-            if dd <= 30: score += 15
-            elif dd <= 90: score += 10
+            dd = int(float(form_data["days_to_move_in"]))
         except Exception:
-            pass
+            dd = None
+    if dd is None:
+        mv = form_data.get("move_in_date") or form_data.get("movein")
+        if mv:
+            try:
+                dd = (datetime.strptime(mv, "%Y-%m-%d") - datetime.now()).days
+            except Exception:
+                dd = None
+    if dd is not None:
+        if dd <= 30: score += 15
+        elif dd <= 90: score += 10
 
-    if 9 <= datetime.now().hour <= 17:
-        score += 10
+    # Business hours: accept client flag, else use server time
+    is_biz = form_data.get("is_business_hours")
+    if isinstance(is_biz, bool):
+        if is_biz: score += 10
+    else:
+        if 9 <= datetime.now().hour <= 17:
+            score += 10
 
+    # Completeness
     filled = sum(1 for v in form_data.values() if v not in (None, "", []))
     score += min(15, filled * 2)
+
     return max(0, min(100, score))
 
 # -------------------------
