@@ -120,158 +120,140 @@ def normalize_nationality(nationality: str = None,
                               
 def prepare_features(form_data):
     """
-    Build a single-row DataFrame aligned to your training feature space.
-
-    Accepts payloads from index_latest.html buildFeaturePayload(...) directly:
-      area, property, budget_num, pax, days_to_move_in, tenancy_months,
-      user_type, room_type, bedroom_type, lead_source, has_car, need_parking,
-      is_malaysian, has_contact, workplace, workplace_hot, is_business_hours,
-      is_weekend, raw_contact
-
-    Also accepts the older names:
-      budget, pax("1 person"/"2 people"/"More than 2"), movein (YYYY-MM-DD),
-      car("Yes"/"No"), parking("Yes"/"No"/"Unknown"), nationality, gender, etc.
+    Build features that exactly match your trained Random Forest model
     """
     current_date = datetime.now()
     feats = {}
 
-    # ------- Core numeric -------
-    # Budget: prefer budget_num from new UI, else fallback to budget
-    budget = _to_float(form_data.get("budget_num",
-                    form_data.get("budget", 800.0)), 800.0)
-    feats["Budget"] = budget
-    feats["Rental Proposed"] = budget
-
-    # Pax: accept number 1/2/3 or string "1 person" etc.
-    feats["No of Pax"] = normalize_pax(form_data.get("pax", 1))
-
-    # Contact time
-    feats["contact_hour"]  = current_date.hour
+    # Core numerical features from your model
+    budget = _to_float(form_data.get("budget"), 0.0)
+    feats["budget"] = budget
+    feats["rental_proposed"] = budget  # Same as budget in your model
+    feats["no_of_pax"] = int(form_data.get("pax", 1)) if form_data.get("pax") != "3+" else 3
+    feats["contact_hour"] = current_date.hour
     feats["contact_month"] = current_date.month
+    feats["frequency"] = 1  # New lead
+    feats["recencydays"] = 0  # New lead
 
-    # ------- Engineered: Budget buckets -------
+    # Budget Category Encoded (exactly as in your model)
     if budget == 0:
-        feats["Budget_Category_Encoded"] = 0
+        feats["Budget_Category_Encoded"] = 0  # Unknown
     elif budget < 500:
-        feats["Budget_Category_Encoded"] = 1
+        feats["Budget_Category_Encoded"] = 1  # Low
     elif budget < 1000:
-        feats["Budget_Category_Encoded"] = 2
+        feats["Budget_Category_Encoded"] = 2  # Medium
     elif budget < 1500:
-        feats["Budget_Category_Encoded"] = 3
+        feats["Budget_Category_Encoded"] = 3  # High
     else:
-        feats["Budget_Category_Encoded"] = 4
+        feats["Budget_Category_Encoded"] = 4  # Premium
 
-    # ------- Engineered: Move urgency (from days_to_move_in OR dates) -------
-    feats["Move_Urgency_Encoded"] = 0
-    dd = None
-
-    # (a) if client already sent computed days_to_move_in
-    if form_data.get("days_to_move_in") is not None:
+    # Move Urgency Encoded (exactly as in your model)
+    move_date = form_data.get("move_in_date")
+    if move_date:
         try:
-            dd = int(float(form_data["days_to_move_in"]))
-        except Exception:
-            dd = None
-
-    # (b) else parse date from new key move_in_date or old key movein
-    if dd is None:
-        date_str = form_data.get("move_in_date") or form_data.get("movein")
-        if date_str:
-            try:
-                move_dt = datetime.strptime(date_str, "%Y-%m-%d")
-                dd = (move_dt - current_date).days
-            except Exception:
-                dd = None
-
-    if dd is not None:
-        if dd <= 30:  feats["Move_Urgency_Encoded"] = 1
-        elif dd <= 90: feats["Move_Urgency_Encoded"] = 2
-        else:          feats["Move_Urgency_Encoded"] = 3
-
-    # ------- Temporal flags: allow client overrides -------
-    is_biz = form_data.get("is_business_hours")
-    is_wend = form_data.get("is_weekend")
-
-    if isinstance(is_biz, bool):
-        feats["Is_Business_Hours"] = 1 if is_biz else 0
+            move_dt = datetime.strptime(move_date, "%Y-%m-%d")
+            days_diff = (move_dt - current_date).days
+            if days_diff <= 30:
+                feats["Move_Urgency_Encoded"] = 1  # Urgent
+            elif days_diff <= 90:
+                feats["Move_Urgency_Encoded"] = 2  # Soon
+            else:
+                feats["Move_Urgency_Encoded"] = 3  # Future
+        except:
+            feats["Move_Urgency_Encoded"] = 0  # Unknown
     else:
-        feats["Is_Business_Hours"] = 1 if 9 <= current_date.hour <= 17 else 0
+        feats["Move_Urgency_Encoded"] = 0  # Unknown
 
-    if isinstance(is_wend, bool):
-        feats["Is_Weekend"] = 1 if is_wend else 0
+    # Time-based features
+    feats["Is_Business_Hours"] = 1 if 9 <= current_date.hour <= 17 else 0
+    feats["Is_Weekend"] = 1 if current_date.weekday() >= 5 else 0
+
+    # Location area (grouped as in your model)
+    area = form_data.get("area", "Other")
+    feats["location_area"] = area
+
+    # Property group (grouped as in your model)
+    property_name = form_data.get("property", "Other")
+    feats["property_group"] = property_name
+
+    # Nationality group (exactly as in your model)
+    nationality = form_data.get("nationality", "Other")
+    if nationality == "Malaysia":
+        feats["nationality_group"] = "Malaysia"
+        feats["Is_Malaysian"] = 1
     else:
-        feats["Is_Weekend"] = 1 if current_date.weekday() >= 5 else 0
+        feats["nationality_group"] = nationality
+        feats["Is_Malaysian"] = 0
 
-    # ------- Lead Source (one-hots your RF used) -------
-    lead_categories = [
-        "Facebook","Google_Search","Google_Ads","Instagram","WhatsApp",
-        "Website","Referral","Walk_In","Email","Phone_Call","Unknown"
-    ]
-    incoming_lead = form_data.get("lead_source") or form_data.get("leadSource") or "Website"
-    cur_source = normalize_lead_source(incoming_lead)
-    for c in lead_categories:
-        feats[f"Lead_Source_Standard_{c}"] = 1 if c == cur_source else 0
+    # Lead Source Standard (one-hot encoded as in your model)
+    lead_source = form_data.get("lead_source", "Unknown")
+    lead_sources = ["Facebook", "Google_Search", "Google_Ads", "Instagram", 
+                   "WhatsApp", "Website", "Referral", "Walk_In", "Email", 
+                   "Phone_Call", "Unknown"]
+    
+    # Map common variations
+    source_mapping = {
+        "Google": "Google_Search",
+        "Walk-in": "Walk_In", 
+        "Other": "Unknown"
+    }
+    mapped_source = source_mapping.get(lead_source, lead_source)
+    
+    for source in lead_sources:
+        feats[f"Lead_Source_Standard_{source}"] = 1 if source == mapped_source else 0
 
-    # ------- Gender (optional in UI; safe default) -------
-    gender_categories = ["Male","Female","Mixed","Unknown"]
-    cur_gender = form_data.get("gender", "Unknown")
-    if cur_gender not in gender_categories:
-        cur_gender = "Unknown"
-    for c in gender_categories:
-        feats[f"Gender_Clean_{c}"] = 1 if c == cur_gender else 0
+    # Customer Journey Clean (one-hot encoded as in your model)
+    user_type = form_data.get("user_type", "Unknown")
+    journey_mapping = {
+        "Working Professional": "Property_Inquiry",
+        "Student": "Information_Collection", 
+        "Intern/Trainee": "Information_Collection",
+        "Other": "Unknown"
+    }
+    journey = journey_mapping.get(user_type, "Unknown")
+    
+    journeys = ["Information_Collection", "Property_Inquiry", "Viewing_Arrangement",
+               "Room_Selection", "Property_Viewing", "Booking_Process", "Unknown"]
+    
+    for j in journeys:
+        feats[f"Customer_Journey_Clean_{j}"] = 1 if j == journey else 0
 
-    # ------- Optional: binary flags the model may have seen -------
-    # These are safe; if feature_names doesn't include them they’ll be dropped later.
-    # Car / Parking
-    has_car = form_data.get("has_car")
-    if isinstance(has_car, bool):
-        feats["Transportation_Car"] = 1 if has_car else 0
-    else:
-        car_str = str(form_data.get("car", "")).strip().lower()
-        feats["Transportation_Car"] = 1 if car_str == "yes" else 0
+    # Gender Clean (one-hot encoded as in your model)
+    gender = form_data.get("gender", "Unknown")
+    genders = ["Male", "Female", "Mixed", "Unknown"]
+    
+    for g in genders:
+        feats[f"Gender_Clean_{g}"] = 1 if g == gender else 0
 
-    need_parking = form_data.get("need_parking")
-    if isinstance(need_parking, bool):
-        feats["Parking_Needed"] = 1 if need_parking else 0
-    else:
-        park_str = str(form_data.get("parking", "")).strip().lower()
-        feats["Parking_Needed"] = 1 if park_str == "yes" else 0
-
-    # Nationality (normalize Malaysia/Malaysian/Others+detail)
-    nat = normalize_nationality(
-        form_data.get("nationality"),
-        form_data.get("is_malaysian"),
-        form_data.get("nationality_detail", "")
-    )
-    feats["Is_Malaysian"] = 1 if nat == "Malaysia" else 0
-
-    # Contact present
-    if "has_contact" in form_data:
-        feats["Has_Contact"] = 1 if bool(form_data.get("has_contact")) else 0
-
+    # Binary features
+    feats["Transportation_Car"] = 1 if form_data.get("has_car") == "Yes" else 0
+    feats["Parking_Needed"] = 1 if form_data.get("need_parking") == "Yes" else 0
+    
     # Workplace hot spot
-    if "workplace_hot" in form_data:
-        feats["Workplace_Hot"] = 1 if bool(form_data.get("workplace_hot")) else 0
+    workplace = form_data.get("workplace", "").lower()
+    hot_spots = ["klcc", "kl sentral", "cyberjaya", "bangsar", "mont kiara"]
+    feats["Workplace_Hot"] = 1 if any(spot in workplace for spot in hot_spots) else 0
+    
+    # Contact info
+    feats["Has_Contact"] = 1 if form_data.get("contact") else 0
+    
+    # Tenancy months
+    feats["Tenancy_Months"] = _to_float(form_data.get("tenancy_months"), 12)
 
-    # (Optional) tenancy months could be useful if in training
-    if "tenancy_months" in form_data:
-        feats["Tenancy_Months"] = _to_float(form_data.get("tenancy_months"), 0)
-
-    # -------- Build DataFrame and align to training feature order --------
+    # Build DataFrame
     df = pd.DataFrame([feats])
 
+    # Align to training features if available
     if feature_names:
-        # add any missing columns with 0
         for col in feature_names:
             if col not in df.columns:
                 df[col] = 0
-        # drop any unexpected columns
         extra = [c for c in df.columns if c not in feature_names]
         if extra:
             df = df.drop(columns=extra)
-        # reorder
         df = df[feature_names]
 
-    # Ensure numeric dtype (one-hots will become 0/1)
+    # Ensure numeric types
     for c in df.columns:
         if df[c].dtype == "object":
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
