@@ -412,28 +412,119 @@ const questions = [
 
 // Turn raw chat answers -> model features
 function buildFeaturePayload(raw) {
-  console.log('Building payload for Flask server with raw data:', raw);
+  console.log('Building payload matching trained model features:', raw);
   
-  // Build the exact structure that Flask expects
+  const now = new Date();
+  
+  // Build payload matching your actual trained model features
   const payload = {
-    // Core fields Flask expects
-    area: raw.area || null,
-    property: raw.property || null,
+    // Core numerical features (from your model)
     budget: parseInt(raw.budget) || 0,
-    pax: raw.pax || "1",
+    rental_proposed: parseInt(raw.budget) || 0, // Assuming same as budget
+    no_of_pax: parseInt(raw.pax) || 1,
+    contact_hour: now.getHours(),
+    contact_month: now.getMonth() + 1,
+    frequency: 1, // New lead
+    recencydays: 0, // New lead
+    
+    // Engineered features that your model expects
+    Budget_Category_Encoded: getBudgetCategoryEncoded(parseInt(raw.budget) || 0),
+    Move_Urgency_Encoded: getMoveUrgencyEncoded(raw.move_in_date),
+    Is_Weekend: now.getDay() === 0 || now.getDay() === 6 ? 1 : 0,
+    Is_Business_Hours: (now.getHours() >= 9 && now.getHours() <= 17) ? 1 : 0,
+    
+    // Location features (matching your model's grouped features)
+    location_area: mapLocationArea(raw.area),
+    property_group: mapPropertyGroup(raw.property),
+    nationality_group: mapNationalityGroup(raw.nationality),
+    
+    // Direct categorical mappings
+    room_type: raw.room_type || 'Unknown',
+    transportation: raw.has_car === 'Yes' ? 'Car' : 'Public Transport',
+    parking: raw.need_parking || 'Unknown',
+    contact_dayofweek: getDayName(now.getDay()),
+    
+    // User type mapping
+    user_type: raw.user_type || 'Unknown',
+    
+    // Contact and workplace
+    workplace: raw.workplace || null,
+    lead_source: raw.lead_source || 'Unknown',
+    contact: raw.contact || null,
+    
+    // Move in date
     move_in_date: raw.move_in_date || null,
     tenancy_months: parseInt(raw.tenancy_months) || 12,
-    has_car: raw.has_car || "No",
-    need_parking: raw.need_parking || "No",
-    user_type: raw.user_type || null,
-    nationality: raw.nationality || null,
-    workplace: raw.workplace || null,
-    lead_source: raw.lead_source || null,
-    contact: raw.contact || null
+    has_car: raw.has_car || 'No',
+    need_parking: raw.need_parking || 'No',
+    nationality: raw.nationality || 'Unknown'
   };
 
-  console.log('Built Flask-compatible payload:', payload);
+  console.log('Built model-compatible payload:', payload);
   return payload;
+}
+
+// Helper functions to match your model's feature engineering
+function getBudgetCategoryEncoded(budget) {
+  if (budget === 0) return 0; // Unknown
+  if (budget < 500) return 1; // Low  
+  if (budget < 1000) return 2; // Medium
+  if (budget < 1500) return 3; // High
+  return 4; // Premium
+}
+
+function getMoveUrgencyEncoded(moveInDate) {
+  if (!moveInDate) return 0; // Unknown
+  
+  const moveDate = new Date(moveInDate);
+  const today = new Date();
+  const daysToMove = Math.ceil((moveDate - today) / (1000 * 60 * 60 * 24));
+  
+  if (daysToMove <= 30) return 1; // Urgent
+  if (daysToMove <= 90) return 2; // Soon
+  return 3; // Future
+}
+
+function mapLocationArea(area) {
+  if (!area) return 'Unknown';
+  
+  const areaLower = area.toLowerCase();
+  if (areaLower.includes('kl') || areaLower.includes('kuala lumpur')) return 'KL_City';
+  if (areaLower.includes('cheras')) return 'Cheras';
+  if (areaLower.includes('mont kiara')) return 'Mont_Kiara';
+  if (areaLower.includes('petaling jaya')) return 'Petaling_Jaya';
+  if (areaLower.includes('subang')) return 'Subang';
+  return 'Other';
+}
+
+function mapPropertyGroup(property) {
+  if (!property) return 'Other';
+  
+  // Map to your model's top 10 properties or 'Other'
+  const topProperties = [
+    '121 Residence', '7 Tree Seven', 'Acacia Residence', 
+    'Arte Cheras', 'Austin Regency', 'Bora Residence',
+    'Epic Residence', 'Icon City', 'Mont Kiara', 'Trion KL'
+  ];
+  
+  return topProperties.includes(property) ? property : 'Other';
+}
+
+function mapNationalityGroup(nationality) {
+  if (!nationality) return 'Unknown';
+  
+  const natLower = nationality.toLowerCase();
+  if (natLower.includes('malaysia')) return 'Malaysia';
+  if (natLower.includes('indonesia')) return 'Indonesia';  
+  if (natLower.includes('india')) return 'India';
+  if (natLower.includes('sudan')) return 'Sudan';
+  if (natLower.includes('zimbabwe')) return 'Zimbabwe';
+  return 'Other';
+}
+
+function getDayName(dayIndex) {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return days[dayIndex];
 }
 
 /* ======= SCORING FUNCTIONS ======= */
