@@ -350,18 +350,44 @@ const AREAS = ["KL/Selangor","Perak","JB/Penang","Negeri Sembilan","Genting High
 const PROPERTIES = ["121 Residence","7 Tree Seven","Acacia Residence","Ara Damansara","Ampang","Arte Cheras","Astoria","Austin Regency","Bandar Sri Permaisuri","Bora Residence","Bukit Jalil","Cheras","D'Cosmos","Duta Park","Emporis Kota Damansara","Epic Residence","HighPark Suites","Icon City","Kelana Jaya","Keramat","Kota Damansara","M Vertica","Majestic Maxim","Medini Signature","Meta City","MH Platinum 2","Mont Kiara","One Cochrane","Parc3","Petaling Jaya","Pinnacle","Platinum Splendor","Razak City Residences","Rica Residence","Sentul","Setapak","Subang Jaya","Sunway Avila","Sunway Serene","Trion KL","Vista Sentul","Vivo Residence"];
 
 const questions = [
-  {id:'area',text:"Hi! Welcome to BeLive. I'm here to help you find the perfect room. Choose an area:",type:'select',options:AREAS,weight:15},
-  {id:'property',text:"Great choice! Here are the available properties in your selected area:",type:'property_select',weight:10},
-  {id:'budget',text:"What's your budget range for monthly rent?",type:'input',placeholder:'e.g., 800',weight:25},
-  {id:'pax',text:'How many people will be staying?',type:'select',options:['1 person','2 people','More than 2'],weight:10},
-  {id:'car',text:'Do you have a car?',type:'select',options:['Yes','No'],weight:5},
-  {id:'parking',text:'Do you need a car park lot?',type:'select',options:['Yes','No'],weight:5},
-  {id:'movein',text:'When are you planning to move in?',type:'date',weight:20},
-  {id:'tenancy',text:"What's your preferred tenancy period?",type:'select',options:['6 months','12 months'],weight:5},
-  {id:'gender',text:"What's your gender?",type:'select',options:['Male','Female'],weight:0},
-  {id:'unit_spec',text:'What type of unit do you prefer? (You can select multiple)',type:'multiple',options:['Female unit','Male unit','Mixed Gender unit'],weight:5},
-  {id:'workplace',text:'Where is your workplace? This helps us recommend the closest property.',type:'input',placeholder:'e.g., KLCC, Cyberjaya',weight:10},
-  {id:'nationality',text:"What's your nationality?",type:'select',options:['Malaysian','Others'],weight:8}
+  // Location (maps to location_area in your model)
+  {id:'area', text:"Welcome to BeLive! Which area are you searching in?", type:'select', options:["KL City","Cheras","Mont Kiara","Petaling Jaya","Subang","University Area","Other"], weight:15},
+  
+  // Property (maps to property_group in your model)  
+  {id:'property', text:"Great! Which property are you interested in?", type:'select', options:["121 Residence","7 Tree Seven","Acacia Residence","Arte Cheras","Austin Regency","Bora Residence","Epic Residence","Icon City","Mont Kiara","Trion KL","Other"], weight:10},
+  
+  // Budget (creates Budget_Category_Encoded: 0=Unknown, 1=Low<500, 2=Medium<1000, 3=High<1500, 4=Premium>=1500)
+  {id:'budget', text:"What's your monthly budget (RM)?", type:'input', placeholder:'e.g., 800', weight:25},
+  
+  // Pax (maps to no_of_pax: 1, 2, or 3+)
+  {id:'pax', text:'How many people will be staying?', type:'select', options:['1','2','3+'], weight:10},
+  
+  // Move-in date (creates Move_Urgency_Encoded: 0=Unknown, 1=Urgent<=30days, 2=Soon<=90days, 3=Future>90days)
+  {id:'move_in_date', text:'When are you planning to move in?', type:'date', weight:20},
+  
+  // Tenancy (maps to tenancy_months)
+  {id:'tenancy_months', text:"What's your preferred tenancy period?", type:'select', options:['6','12','18','24'], weight:5},
+  
+  // Transportation (maps to Transportation_Car binary)
+  {id:'has_car', text:'Do you have a car?', type:'select', options:['Yes','No'], weight:5},
+  
+  // Parking (maps to Parking_Needed binary)
+  {id:'need_parking', text:'Do you need a parking lot?', type:'select', options:['Yes','No'], weight:5},
+  
+  // User type (maps to Customer_Journey_Clean one-hot encoding)
+  {id:'user_type', text:"What best describes you?", type:'select', options:['Working Professional','Student','Intern/Trainee','Other'], weight:8},
+  
+  // Gender (maps to Gender_Clean one-hot encoding)
+  {id:'gender', text:"What's your gender?", type:'select', options:['Male','Female','Mixed'], weight:3},
+  
+  // Nationality (maps to nationality_group and Is_Malaysian)
+  {id:'nationality', text:"What's your nationality?", type:'select', options:['Malaysia','Indonesia','India','Sudan','Zimbabwe','Other'], weight:8},
+  
+  // Workplace (maps to workplace_hot binary flag)
+  {id:'workplace', text:'Where do you work/study? (This helps us recommend closer properties)', type:'input', placeholder:'e.g., KLCC, Cyberjaya', weight:10},
+  
+  // Lead source (maps to Lead_Source_Standard one-hot encoding)
+  {id:'lead_source', text:"How did you hear about us?", type:'select', options:['Facebook','Instagram','Google','Website','Referral','Walk-in','WhatsApp','Other'], weight:5}
 ];
 
 /* ======= SCORING FUNCTIONS ======= */
