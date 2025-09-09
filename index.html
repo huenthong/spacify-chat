@@ -412,15 +412,19 @@ const questions = [
 
 // Turn raw chat answers -> model features
 function buildFeaturePayload(raw) {
+  console.log('Building payload for Flask server with raw data:', raw);
+  
+  // Build the exact structure that Flask expects
   const payload = {
+    // Core fields Flask expects
     area: raw.area || null,
     property: raw.property || null,
-    budget: raw.budget ? parseFloat(raw.budget.toString().replace(/[^\d.]/g, '')) : 0,
+    budget: parseInt(raw.budget) || 0,
     pax: raw.pax || "1",
     move_in_date: raw.move_in_date || null,
-    tenancy_months: raw.tenancy_months ? parseInt(raw.tenancy_months) : 12,
+    tenancy_months: parseInt(raw.tenancy_months) || 12,
     has_car: raw.has_car || "No",
-    need_parking: raw.need_parking || "No", 
+    need_parking: raw.need_parking || "No",
     user_type: raw.user_type || null,
     nationality: raw.nationality || null,
     workplace: raw.workplace || null,
@@ -428,7 +432,7 @@ function buildFeaturePayload(raw) {
     contact: raw.contact || null
   };
 
-  console.log('Built payload for model:', payload);
+  console.log('Built Flask-compatible payload:', payload);
   return payload;
 }
 
@@ -559,7 +563,7 @@ async function recomputeScoreFromFeatures(features) {
         document.getElementById('usingServer').textContent = 'Yes';
       }
       
-      console.log('Calling server with features:', features);
+      console.log('Calling server with Flask-compatible features:', features);
       
       const response = await fetch(SCORE_ENDPOINT, {
         method: 'POST',
@@ -585,6 +589,8 @@ async function recomputeScoreFromFeatures(features) {
       return Math.max(0, Math.min(100, Math.round(score)));
       
     } catch (error) {
+      const errorText = await response.text();
+      console.error('Server error response:', errorText);
       console.error('Server scoring failed:', error);
       
       if (DEBUG_MODE) {
