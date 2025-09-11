@@ -345,6 +345,7 @@ let allLeadsDatabase = [];
 let chatCurrentStep = 0;
 let chatUserResponses = {};
 let chatAlpsScore = 0;
+let chatQuestionScores = []; // Track scores at each question
 
 const AREAS = ["KL/Selangor","Perak","JB/Penang","Negeri Sembilan","Genting Highlands"];
 const PROPERTIES = ["121 Residence","7 Tree Seven","Acacia Residence","Ara Damansara","Ampang","Arte Cheras","Astoria","Austin Regency","Bandar Sri Permaisuri","Bora Residence","Bukit Jalil","Cheras","D'Cosmos","Duta Park","Emporis Kota Damansara","Epic Residence","HighPark Suites","Icon City","Kelana Jaya","Keramat","Kota Damansara","M Vertica","Majestic Maxim","Medini Signature","Meta City","MH Platinum 2","Mont Kiara","One Cochrane","Parc3","Petaling Jaya","Pinnacle","Platinum Splendor","Razak City Residences","Rica Residence","Sentul","Setapak","Subang Jaya","Sunway Avila","Sunway Serene","Trion KL","Vista Sentul","Vivo Residence"];
@@ -377,10 +378,10 @@ const questions = [
   // User type (maps to Customer_Journey_Clean one-hot encoding)
   {id:'user_type', text:"What best describes you?", type:'select', options:['Working Professional','Student','Intern/Trainee','Other'], weight:8},
   
-  // Gender (maps to Gender_Clean one-hot encoding)
-  {id:'gender', text:"What's your gender?", type:'select', options:['Male','Female','Mixed'], weight:3},
+  // Gender (maps to Gender_Clean one-hot encoding) - REMOVED "Mixed"
+  {id:'gender', text:"What's your gender?", type:'select', options:['Male','Female'], weight:3},
   
-  // Nationality (maps to nationality_group and Is_Malaysian)
+  // Nationality (maps to nationality_group and Is_Malaysian) - NOW SUPPORTS "Other" INPUT
   {id:'nationality', text:"What's your nationality?", type:'select', options:['Malaysia','Indonesia','India','Sudan','Zimbabwe','Other'], weight:8},
   
   // Workplace (maps to workplace_hot binary flag)
@@ -399,7 +400,7 @@ function clientSideHeuristicScore(features) {
   
   if (features.area) {
     score += 15;
-    if (['KL/Selangor', 'Mont Kiara'].includes(features.area)) {
+    if (['KL City', 'Mont Kiara'].includes(features.area)) {
       score += 5;
     }
   }
@@ -424,22 +425,22 @@ function clientSideHeuristicScore(features) {
   }
   
   if (features.pax) {
-    if (features.pax === '1 person') {
+    if (features.pax === '1') {
       score += 10;
-    } else if (features.pax === '2 people') {
+    } else if (features.pax === '2') {
       score += 8;
     } else {
       score += 6;
     }
   }
   
-  if (features.car === 'Yes') {
+  if (features.has_car === 'Yes') {
     score += 5;
   }
   
-  if (features.movein) {
+  if (features.move_in_date) {
     try {
-      const moveDate = new Date(features.movein);
+      const moveDate = new Date(features.move_in_date);
       const today = new Date();
       const diffDays = Math.ceil((moveDate - today) / (1000 * 60 * 60 * 24));
       
@@ -457,16 +458,12 @@ function clientSideHeuristicScore(features) {
     }
   }
   
-  if (features.tenancy) {
-    if (features.tenancy === '12 months') {
+  if (features.tenancy_months) {
+    if (features.tenancy_months === '12') {
       score += 5;
     } else {
       score += 3;
     }
-  }
-  
-  if (features.unit_spec) {
-    score += 5;
   }
   
   if (features.workplace && features.workplace.trim().length > 0) {
@@ -478,7 +475,7 @@ function clientSideHeuristicScore(features) {
   }
   
   if (features.nationality) {
-    if (features.nationality === 'Malaysian') {
+    if (features.nationality === 'Malaysia') {
       score += 8;
     } else {
       score += 6;
@@ -649,7 +646,7 @@ function renderAgentsGrid(){
     grid.innerHTML += `
       <div class="agent-card ${borderClass} ${isTopSales?'top-sales':''}" data-agent="${id}">
         <div class="agent-header">
-          <div class="agent-name">${isTopSales?'👑 ':''}${a.name}</div>
+          <div class="agent-name">${isTopSales?'🏆 ':''}${a.name}</div>
           <div class="agent-status ${statusClass}">${a.status==='available'?'Available':'Busy'}</div>
         </div>
         <div>${isTopSales?'Top Sales Agent':'Agent'} • Queue Position: ${index+1}</div>
@@ -673,7 +670,7 @@ function renderQueueFromAgents(){
       <div class="queue-item" draggable="true" data-agent="${id}" data-position="${i+1}">
         <div style="display:flex;align-items:center;gap:12px">
           <div class="drag-handle">≡</div>
-          <div>${isTopSales?'👑 ':''}<strong>${AGENTS[id].name}</strong> - ${isTopSales?'Top Sales':'Agent'}</div>
+          <div>${isTopSales?'🏆 ':''}<strong>${AGENTS[id].name}</strong> - ${isTopSales?'Top Sales':'Agent'}</div>
         </div>
         <div class="position-text">Position: ${i+1}</div>
       </div>`;
@@ -722,6 +719,9 @@ function refreshLeadsView(){
   pastContainer.innerHTML = '';
   
   allLeadsDatabase.forEach(lead => {
+    // Filter out escalated leads from the display
+    if(lead.status === 'escalated') return;
+    
     const isOngoing = ['assigned', 'ai_handling', 'in_queue', 'ai_takeover'].includes(lead.status);
     const container = isOngoing ? ongoingContainer : pastContainer;
     
@@ -735,6 +735,9 @@ function createLeadElement(lead){
   const scoreCls = lead.score > HOT_SCORE_THRESHOLD ? 'score-hot' : lead.score > WARM_SCORE_THRESHOLD ? 'score-warm' : 'score-cold';
   const statusText = getLeadStatusText(lead.status);
   
+  // Use finalAgent if available, otherwise use agent
+  const displayAgent = lead.finalAgent || lead.agent || 'Unassigned';
+  
   const el = document.createElement('div');
   el.className = `lead-item ${cls}`;
   el.setAttribute('data-lead', lead.id);
@@ -744,7 +747,7 @@ function createLeadElement(lead){
     <div class="lead-score ${scoreCls}">${lead.score}</div>
     <div class="lead-info">
       <div class="lead-name">${lead.score > HOT_SCORE_THRESHOLD ? '🔥' : ''} Lead ${lead.leadNumber}</div>
-      <div class="lead-details">Area: ${lead.area} • Budget: RM${lead.budget}<br/>Move-in: ${lead.movein} • Agent: ${lead.agent}</div>
+      <div class="lead-details">Area: ${lead.area} • Budget: RM${lead.budget}<br/>Move-in: ${lead.movein} • Agent: ${displayAgent}</div>
       <div class="lead-timestamp">Started: ${lead.timestamp.toLocaleTimeString()} • Status: ${statusText}</div>
     </div>`;
   
@@ -759,6 +762,7 @@ function getLeadStatusText(status){
     case 'in_queue': return 'Queued';
     case 'completed': return 'Deal Closed';
     case 'cancelled': return 'Cancelled';
+    case 'escalated': return 'Escalated';
     default: return 'Pending';
   }
 }
@@ -955,6 +959,7 @@ function handbackToAgent(convId){
   // Hand back to agent
   conv.agentId = targetAgent.id;
   conv.agentName = targetAgent.name;
+  conv.finalAgentName = targetAgent.name; // Update final agent name
   conv.status = 'waiting_agent_response';
   conv.slaTimer = {type: 'initial', timeRemaining: INITIAL_RESPONSE_TIMEOUT, alertTriggered: false, overdue: 0};
   agentConversations[targetAgent.id].push(conv);
@@ -971,6 +976,7 @@ function handbackToAgent(convId){
   if(leadIndex !== -1){
     allLeadsDatabase[leadIndex].status = 'assigned';
     allLeadsDatabase[leadIndex].agent = targetAgent.name;
+    allLeadsDatabase[leadIndex].finalAgent = targetAgent.name; // Update final agent
     allLeadsDatabase[leadIndex].score = conv.score;
   }
   
@@ -1055,7 +1061,7 @@ function buildConversationRow(conv){
   
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:start">
-      <div><div><strong>Lead ${conv.leadNumber}</strong> • ${conv.agentName}</div><div style="font-size:14px;color:#7f8c8d">${conv.area} • ALPS: ${conv.score}</div></div>
+      <div><div><strong>Lead ${conv.leadNumber}</strong> • ${conv.finalAgentName || conv.agentName}</div><div style="font-size:14px;color:#7f8c8d">${conv.area} • ALPS: ${conv.score}</div></div>
       <div style="text-align:right"><div class="status-indicator" style="font-size:12px">${s.status}</div></div>
     </div>
     <div class="sla-timer"><div class="timer-badge ${t.class}">${t.text}</div><div style="font-size:12px">${t.description}</div></div>
@@ -1072,7 +1078,7 @@ function openSLAChat(id){
 }
 
 function loadActiveConversation(conv){
-  document.getElementById('slaCurrentChat').textContent = `Lead ${conv.leadNumber} - ${conv.agentName}`;
+  document.getElementById('slaCurrentChat').textContent = `Lead ${conv.leadNumber} - ${conv.finalAgentName || conv.agentName}`;
   document.getElementById('slaCurrentDetails').textContent = `${conv.area} • ALPS: ${conv.score} • ${getStatusText(conv.status)}`;
 
   const info = getConversationTimer(conv);
@@ -1271,11 +1277,19 @@ function reassignToMostAvailableAgent(conv){
   if(next){
     conv.agentId = next.id;
     conv.agentName = next.name;
+    conv.finalAgentName = next.name; // Update final agent name
     conv.assignedTime = new Date();
     conv.status = 'waiting_agent_response';
     conv.slaTimer = {type:'initial', timeRemaining:INITIAL_RESPONSE_TIMEOUT, alertTriggered:false, overdue:0};
     agentConversations[next.id].push(conv);
     conv.messages.push({type:'system', text:`Conversation reassigned to ${next.name} due to initial response timeout.`, time:new Date().toLocaleTimeString()});
+
+    // Update lead database with final agent
+    const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
+    if(leadIndex !== -1){
+      allLeadsDatabase[leadIndex].agent = next.name;
+      allLeadsDatabase[leadIndex].finalAgent = next.name;
+    }
 
     if(selectedConversation === conv.id) loadActiveConversation(conv);
     refreshCurrentListView();
@@ -1289,13 +1303,52 @@ function reassignToMostAvailableAgent(conv){
 
 function escalateConversation(){
   if(!selectedConversation) return;
+  const conv = activeConversations[selectedConversation];
+  if(!conv) return;
+
+  // Remove conversation from agent capacity
+  const agentConvs = agentConversations[conv.agentId];
+  const index = agentConvs.findIndex(c => c.id === conv.id);
+  if(index !== -1) {
+    agentConvs.splice(index, 1);
+  }
+
+  // Remove from activeConversations
+  delete activeConversations[selectedConversation];
+
+  // Update lead database to escalated status
+  const leadIndex = allLeadsDatabase.findIndex(l => l.leadNumber === conv.leadNumber);
+  if(leadIndex !== -1){
+    allLeadsDatabase[leadIndex].status = 'escalated';
+    allLeadsDatabase[leadIndex].escalatedTime = new Date();
+  }
+
+  const escalationMessage = {
+    type: 'system',
+    text: `Conversation escalated to supervisor. Agent capacity freed. Lead ${conv.leadNumber} will be handled by management team.`,
+    time: new Date().toLocaleTimeString()
+  };
+  conv.messages.push(escalationMessage);
+
   const box = document.getElementById('slaMessages');
   const div = document.createElement('div');
   div.className = 'message message-system';
-  div.innerHTML = `<div><strong>Conversation Escalated</strong></div><div>Supervisor will take over.</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${new Date().toLocaleTimeString()}</div>`;
-  box.appendChild(div); 
+  div.style.background = '#fff3cd';
+  div.style.borderColor = '#ffc107';
+  div.innerHTML = `<div><strong>🚨 Conversation Escalated</strong></div><div>${escalationMessage.text}</div><div style="font-size:12px;color:#7f8c8d;margin-top:5px">${escalationMessage.time}</div>`;
+  box.appendChild(div);
   box.scrollTop = box.scrollHeight;
-  alert('Escalated. Supervisor will take over soon.');
+
+  showNotification(`Lead ${conv.leadNumber} escalated to supervisor`, 'warning');
+  
+  // Clear the conversation view
+  selectedConversation = null;
+  document.getElementById('slaInputArea').style.display = 'none';
+  refreshCurrentListView();
+  
+  setTimeout(() => {
+    document.getElementById('slaMessages').innerHTML = `<div style="text-align:center;color:#7f8c8d;margin-top:40px"><h3>💬 SLA Chat Monitor</h3><p>Select a conversation from the left to view and manage the chat</p></div>`;
+  }, 2000);
 }
 
 function markDeal(){
@@ -1450,11 +1503,35 @@ function showLeadChart(leadId){
 function buildLeadChartData(lead){
   console.log('Building chart data for lead:', lead);
   
+  // If we have actual score progression from the chat flow
+  if(lead.scoreProgression && lead.scoreProgression.length > 0){
+    const labels = ['Start'];
+    const questionLabels = ['Area', 'Property', 'Budget', 'Pax', 'Move-in', 'Tenancy', 'Car', 'Parking', 'User Type', 'Gender', 'Nationality', 'Workplace', 'Lead Source'];
+    
+    // Create labels based on actual responses
+    Object.keys(lead.responses || {}).forEach((key, index) => {
+      if(index < questionLabels.length) {
+        labels.push(questionLabels[index]);
+      }
+    });
+    
+    if(labels.length < lead.scoreProgression.length) {
+      labels.push('Final');
+    }
+    
+    return {
+      name: `Lead ${lead.leadNumber}`,
+      scores: lead.scoreProgression,
+      messages: labels.slice(0, lead.scoreProgression.length),
+      details: `${lead.area} • Budget: RM${lead.budget} • Move-in: ${lead.movein} • Status: ${getLeadStatusText(lead.status)}`
+    };
+  }
+  
   if(lead.responses && Object.keys(lead.responses).length > 0){
     // Use actual progression from responses
     const scores = [0]; 
     let currentScore = 0;
-    const questionIds = ['area', 'property', 'budget', 'pax', 'car', 'parking', 'movein', 'tenancy', 'gender', 'unit_spec', 'workplace', 'nationality'];
+    const questionIds = ['area', 'property', 'budget', 'pax', 'move_in_date', 'tenancy_months', 'has_car', 'need_parking', 'user_type', 'gender', 'nationality', 'workplace', 'lead_source'];
     
     questionIds.forEach(qId => {
       const response = lead.responses[qId];
@@ -1469,7 +1546,7 @@ function buildLeadChartData(lead){
       switch(qId) {
         case 'area':
           increment = 8;
-          if(['KL/Selangor', 'Mont Kiara'].includes(response)) increment += 3;
+          if(['KL City', 'Mont Kiara'].includes(response)) increment += 3;
           break;
         case 'property':
           increment = 5;
@@ -1483,15 +1560,15 @@ function buildLeadChartData(lead){
           else if(budget > 0) increment = 5;
           break;
         case 'pax':
-          increment = response === '1 person' ? 6 : response === '2 people' ? 5 : 4;
+          increment = response === '1' ? 6 : response === '2' ? 5 : 4;
           break;
-        case 'car':
+        case 'has_car':
           increment = response === 'Yes' ? 3 : 1;
           break;
-        case 'parking':
+        case 'need_parking':
           increment = response === 'Yes' ? 2 : 1;
           break;
-        case 'movein':
+        case 'move_in_date':
           try {
             const moveDate = new Date(response);
             const today = new Date();
@@ -1504,14 +1581,14 @@ function buildLeadChartData(lead){
             increment = 5;
           }
           break;
-        case 'tenancy':
-          increment = response === '12 months' ? 4 : 3;
+        case 'tenancy_months':
+          increment = response === '12' ? 4 : 3;
           break;
         case 'gender':
           increment = 2;
           break;
-        case 'unit_spec':
-          increment = Array.isArray(response) ? response.length * 2 : 3;
+        case 'user_type':
+          increment = 3;
           break;
         case 'workplace':
           if(response && response.trim()) {
@@ -1525,9 +1602,11 @@ function buildLeadChartData(lead){
           }
           break;
         case 'nationality':
-          if(response === 'Malaysian') increment = 8;
-          else if(response === 'Others') increment = 6;
+          if(response === 'Malaysia') increment = 8;
           else increment = 4;
+          break;
+        case 'lead_source':
+          increment = 2;
           break;
         default:
           increment = 3;
@@ -1545,7 +1624,7 @@ function buildLeadChartData(lead){
     return {
       name: `Lead ${lead.leadNumber}`,
       scores, 
-      messages: ['Start','Area','Property','Budget','Pax','Car','Parking','Move-in','Tenancy','Gender','Unit','Workplace','Nationality','Final'], 
+      messages: ['Start','Area','Property','Budget','Pax','Move-in','Tenancy','Car','Parking','User','Gender','Nationality','Workplace','Source','Final'].slice(0, scores.length), 
       details: `${lead.area} • Budget: RM${lead.budget} • Move-in: ${lead.movein} • Status: ${getLeadStatusText(lead.status)}`
     };
   }
@@ -1638,6 +1717,7 @@ function initializeChat(){
   chatCurrentStep = 0; 
   chatUserResponses = {}; 
   chatAlpsScore = 0;
+  chatQuestionScores = [0]; // Start with initial score of 0
   const box = document.getElementById('chatMessages');
   box.innerHTML = `<div class="typing-indicator" id="typingIndicator"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
   updateChatScoreDisplay();
@@ -1698,10 +1778,17 @@ function toggleMultipleChoice(oid, id){
 }
 
 function selectOption(id, val){
-  if(id === 'nationality' && val === 'Others'){
+  if(id === 'nationality' && val === 'Other'){
     chatUserResponses[id] = val;
     addMessage(val, 'user');
-    addMessage(`<div>Please specify your nationality:</div><input class="input-field" type="text" placeholder="e.g., Filipino, Iranian" onkeypress="handleInputKeypress(event,'nationality_other')">`, 'bot');
+    addMessage(`<div>Please specify your nationality:</div><input class="input-field" type="text" placeholder="e.g., Filipino, Iranian" onkeypress="handleInputKeypress(event,'nationality_detail')">`, 'bot');
+    return;
+  }
+  
+  if(id === 'area' && val === 'Other'){
+    chatUserResponses[id] = val;
+    addMessage(val, 'user');
+    addMessage(`<div>Please specify the area you're searching in:</div><input class="input-field" type="text" placeholder="e.g., Ampang, Damansara" onkeypress="handleInputKeypress(event,'area_detail')">`, 'bot');
     return;
   }
   
@@ -1719,11 +1806,18 @@ function handleInputKeypress(e, id){
     const v = e.target.value.trim(); 
     if(!v) return; 
     
-    if(id === 'nationality_other'){ 
+    if(id === 'nationality_detail'){ 
       chatUserResponses['nationality_detail'] = v; 
+      chatUserResponses['nationality'] = v; // Use the custom nationality as the main value
       addMessage(v, 'user'); 
       console.log('Nationality detail provided:', v);
       recalcScoreAndAdvance('nationality_detail', v); 
+    } else if(id === 'area_detail'){ 
+      chatUserResponses['area_detail'] = v; 
+      chatUserResponses['area'] = v; // Use the custom area as the main value
+      addMessage(v, 'user'); 
+      console.log('Area detail provided:', v);
+      recalcScoreAndAdvance('area_detail', v); 
     } else { 
       chatUserResponses[id] = v;
       console.log('Input provided:', id, '=', v);
@@ -1762,12 +1856,14 @@ function recalcScoreAndAdvance(lastId, val){
     console.log('New score calculated:', score);
     
     chatAlpsScore = Math.max(0, Math.min(100, score));
+    chatQuestionScores.push(chatAlpsScore); // Store score progression
     updateChatScoreDisplay();
     
     setTimeout(() => askQuestion(chatCurrentStep + 1), 600);
   }).catch(error => {
     console.error('Score calculation failed:', error);
     chatAlpsScore = clientSideHeuristicScore(currentFeatures);
+    chatQuestionScores.push(chatAlpsScore); // Store score progression
     updateChatScoreDisplay();
     setTimeout(() => askQuestion(chatCurrentStep + 1), 600);
   });
@@ -1800,9 +1896,10 @@ function finalizeLead(){
       score: Math.round(chatAlpsScore),
       area: chatUserResponses.area || 'KL/Selangor',
       budget: chatUserResponses.budget || 'Not specified',
-      movein: chatUserResponses.movein || 'Not specified',
+      movein: chatUserResponses.move_in_date || 'Not specified',
       property: chatUserResponses.property || 'Not specified',
       responses: {...chatUserResponses},
+      scoreProgression: [...chatQuestionScores], // Store actual score progression
       timestamp: new Date(),
       status: 'pending_assignment'
     };
@@ -1920,6 +2017,7 @@ function routeLeadToAgent(lead){
     const bestName = best.name;
     lead.agent = bestName; 
     lead.agentId = best.id; 
+    lead.finalAgent = bestName; // Track the final assigned agent
     lead.status = 'assigned';
 
     const convId = `conv_${lead.id}`;
@@ -1929,6 +2027,7 @@ function routeLeadToAgent(lead){
       leadNumber: lead.leadNumber,
       agentId: best.id, 
       agentName: bestName,
+      finalAgentName: bestName, // Track final agent in conversation too
       score: lead.score, 
       area: lead.area, 
       budget: lead.budget,
