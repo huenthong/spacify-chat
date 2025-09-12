@@ -22,33 +22,24 @@ model = None
 feature_names = None
 ARTIFACT_DIR = os.environ.get("ARTIFACT_DIR", os.path.dirname(__file__))
 
-MODEL_FILENAME = os.environ.get("MODEL_FILENAME", "best_rf_model.pkl")
-FEATURES_FILENAME = os.environ.get("FEATURES_FILENAME", "feature_names.pkl")
+MODEL_FILENAME = os.environ.get("MODEL_FILENAME", "rf_model.pkl")
 
 # -------------------------
 # Load artifacts on import
 # -------------------------
-def load_model_artifacts():
-    global model, feature_names
-    model_path = os.path.join(ARTIFACT_DIR, MODEL_FILENAME)
-    features_path = os.path.join(ARTIFACT_DIR, FEATURES_FILENAME)
+def load_model():
+    global model
+    model_path = os.path.join(ARTIFACT_DIR, model_FILENAME)
     try:
-        model = joblib.load(model_path)
-        logger.info(f"✅ Loaded model: {type(model).__name__} from {model_path}")
+        import pickle
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
+        logger.info(f"✅ Loaded preprocessing pipeline from {model_path}")
     except Exception as e:
-        logger.error(f"❌ Failed to load model from {model_path}: {e}")
+        logger.error(f"❌ Failed to load pipeline from {model_path}: {e}")
         model = None
 
-    try:
-        feature_names = joblib.load(features_path)
-        if isinstance(feature_names, (list, np.ndarray, pd.Index)):
-            feature_names = list(feature_names)
-        logger.info(f"✅ Loaded feature_names: {len(feature_names)} from {features_path}")
-    except Exception as e:
-        logger.warning(f"⚠️ Could not load feature_names from {features_path}: {e}")
-        feature_names = None
-
-load_model_artifacts()
+load_model()
 
 # -------------------------
 # Feature prep
