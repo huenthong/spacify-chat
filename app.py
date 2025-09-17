@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import pickle
 from pathlib import Path
 
@@ -20,16 +20,13 @@ logger = logging.getLogger("belive-alps")
 app = Flask(__name__)
 
 # -------------------------
-# CORS Configuration - FIX FOR GITHUB PAGES
+# VERY PERMISSIVE CORS CONFIGURATION
 # -------------------------
-CORS(app, origins=[
-    "https://huenthong.github.io",
-    "http://localhost:*",
-    "http://127.0.0.1:*",
-    "https://*.github.io"
-], 
-methods=['GET', 'POST', 'OPTIONS'],
-allow_headers=['Content-Type', 'Authorization'])
+CORS(app, 
+     origins="*",  # Allow all origins for testing
+     methods=['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+     allow_headers=['Content-Type', 'Authorization', 'Access-Control-Allow-Credentials'],
+     supports_credentials=True)
 
 # -------------------------
 # Globals
@@ -196,7 +193,7 @@ def normalize_pax(pax_value):
     return 1
 
 # -------------------------
-# Fallback score (unchanged)
+# Fallback score
 # -------------------------
 def calculate_fallback_score(form_data):
     score = 50
@@ -239,11 +236,22 @@ def calculate_fallback_score(form_data):
     return max(0, min(100, score))
 
 # -------------------------
+# Manual CORS headers for all responses
+# -------------------------
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Access-Control-Allow-Credentials'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
+
+# -------------------------
 # Routes
 # -------------------------
 @app.route("/")
+@cross_origin()
 def root():
-    return jsonify({
+    response = jsonify({
         "status": "BeLive ALPS API running",
         "preprocessor_loaded": preprocessor is not None,
         "model_loaded": preprocessor and preprocessor.best_model is not None,
@@ -254,15 +262,19 @@ def root():
         "timestamp": datetime.now().isoformat(),
         "cors_enabled": True
     })
+    return add_cors_headers(response)
 
 @app.route("/api/score", methods=["POST", "OPTIONS"])
+@cross_origin()
 def score():
     # Handle preflight OPTIONS request
     if request.method == "OPTIONS":
-        return jsonify({"status": "OK"}), 200
+        response = jsonify({"status": "OK"})
+        return add_cors_headers(response)
         
     if not request.is_json:
-        return jsonify({"error": "Send JSON", "score": 50}), 400
+        response = jsonify({"error": "Send JSON", "score": 50})
+        return add_cors_headers(response), 400
     
     payload = request.get_json(silent=True) or {}
     logger.info(f"Incoming keys: {list(payload.keys())}")
@@ -271,12 +283,13 @@ def score():
     if preprocessor is None or preprocessor.best_model is None:
         fb = calculate_fallback_score(payload)
         logger.error("Preprocessor/model not loaded – returning fallback")
-        return jsonify({
+        response = jsonify({
             "score": fb,
             "timestamp": datetime.now().isoformat(),
             "model_used": False,
             "reason": "preprocessor_not_loaded"
-        }), 200
+        })
+        return add_cors_headers(response)
     
     try:
         # Map form data to model format
@@ -297,28 +310,31 @@ def score():
         
         logger.info(f"Model prediction - probability={probability:.4f}, score={score_value:.2f}")
         
-        return jsonify({
+        response = jsonify({
             "score": round(score_value, 2),
             "success_probability": round(probability, 4),
             "timestamp": datetime.now().isoformat(),
             "model_used": True,
             "model_type": type(preprocessor.best_model).__name__
         })
+        return add_cors_headers(response)
         
     except Exception as e:
         logger.exception(f"Scoring failed, using fallback: {e}")
         fb = calculate_fallback_score(payload)
-        return jsonify({
+        response = jsonify({
             "score": fb,
             "timestamp": datetime.now().isoformat(),
             "model_used": False,
             "reason": "prediction_exception",
             "error": str(e)
-        }), 200
+        })
+        return add_cors_headers(response)
 
 @app.route("/api/health")
+@cross_origin()
 def health():
-    return jsonify({
+    response = jsonify({
         "status": "ok",
         "preprocessor_loaded": preprocessor is not None,
         "model_loaded": preprocessor and preprocessor.best_model is not None,
@@ -327,19 +343,14 @@ def health():
         "timestamp": datetime.now().isoformat(),
         "cors_enabled": True
     })
+    return add_cors_headers(response)
 
 # -------------------------
-# Additional CORS headers for all responses
+# Apply CORS headers to all responses
 # -------------------------
 @app.after_request
 def after_request(response):
-    origin = request.headers.get('Origin')
-    if origin and (origin.endswith('.github.io') or 'localhost' in origin or '127.0.0.1' in origin):
-        response.headers.add('Access-Control-Allow-Origin', origin)
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
+    return add_cors_headers(response)
 
 # -------------------------
 # Entrypoint (dev)
