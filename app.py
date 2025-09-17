@@ -121,15 +121,6 @@ def map_form_to_model_data(form_data):
     
     return model_data
 
-def map_user_type_to_journey(user_type):
-    """Map user type to customer journey"""
-    mapping = {
-        'Working Professional': 'QnA about unit',
-        'Student': 'Info collection - Getting all question at once', 
-        'Intern/Trainee': 'Info collection - Getting all question at once',
-        'Other': 'Unknown'
-    }
-    return mapping.get(user_type, 'Unknown')
 
 def normalize_lead_source(source):
     """Normalize lead source to match model expectations"""
@@ -161,7 +152,7 @@ def normalize_nationality_input(form_data):
     nationality = form_data.get('nationality', 'Unknown')
     is_malaysian = form_data.get('is_malaysian', False)
     
-    if is_malaysian or (nationality and nationality.lower() in ['malaysia', 'malaysian']):
+    if is_malaysian or nationality.lower() in ['malaysia', 'malaysian']:
         return 'Malaysia'
     
     return nationality if nationality else 'Unknown'
