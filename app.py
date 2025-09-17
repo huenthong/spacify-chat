@@ -22,11 +22,7 @@ app = Flask(__name__)
 # -------------------------
 # VERY PERMISSIVE CORS CONFIGURATION
 # -------------------------
-CORS(app, 
-     origins="*",  # Allow all origins for testing
-     methods=['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
-     allow_headers=['Content-Type', 'Authorization', 'Access-Control-Allow-Credentials'],
-     supports_credentials=True)
+CORS(app, origins=["https://huenthong.github.io"])
 
 # -------------------------
 # Globals
