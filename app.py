@@ -18,7 +18,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("belive-alps")
 
 app = Flask(__name__)
-CORS(app)
+
+# -------------------------
+# CORS Configuration - FIX FOR GITHUB PAGES
+# -------------------------
+CORS(app, origins=[
+    "https://huenthong.github.io",
+    "http://localhost:*",
+    "http://127.0.0.1:*",
+    "https://*.github.io"
+], 
+methods=['GET', 'POST', 'OPTIONS'],
+allow_headers=['Content-Type', 'Authorization'])
 
 # -------------------------
 # Globals
@@ -121,6 +132,18 @@ def map_form_to_model_data(form_data):
     
     return model_data
 
+def map_user_type_to_journey(user_type):
+    """Map user type to customer journey"""
+    if not user_type:
+        return 'Unknown'
+    
+    mapping = {
+        'Working Professional': 'Property_Inquiry',
+        'Student': 'Information_Collection',
+        'Intern/Trainee': 'Information_Collection',
+        'Other': 'Unknown'
+    }
+    return mapping.get(user_type, 'Unknown')
 
 def normalize_lead_source(source):
     """Normalize lead source to match model expectations"""
@@ -228,11 +251,16 @@ def root():
         "feature_count": len(preprocessor.feature_names) if preprocessor and preprocessor.feature_names else None,
         "artifact_dir": ARTIFACT_DIR,
         "model_filename": MODEL_FILENAME,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "cors_enabled": True
     })
 
-@app.route("/api/score", methods=["POST"])
+@app.route("/api/score", methods=["POST", "OPTIONS"])
 def score():
+    # Handle preflight OPTIONS request
+    if request.method == "OPTIONS":
+        return jsonify({"status": "OK"}), 200
+        
     if not request.is_json:
         return jsonify({"error": "Send JSON", "score": 50}), 400
     
@@ -242,7 +270,7 @@ def score():
     # If preprocessor not loaded, return fallback
     if preprocessor is None or preprocessor.best_model is None:
         fb = calculate_fallback_score(payload)
-        logger.error("Preprocessor/model not loaded — returning fallback")
+        logger.error("Preprocessor/model not loaded – returning fallback")
         return jsonify({
             "score": fb,
             "timestamp": datetime.now().isoformat(),
@@ -296,8 +324,22 @@ def health():
         "model_loaded": preprocessor and preprocessor.best_model is not None,
         "model_type": type(preprocessor.best_model).__name__ if preprocessor and preprocessor.best_model else None,
         "feature_count": len(preprocessor.feature_names) if preprocessor and preprocessor.feature_names else None,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "cors_enabled": True
     })
+
+# -------------------------
+# Additional CORS headers for all responses
+# -------------------------
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin and (origin.endswith('.github.io') or 'localhost' in origin or '127.0.0.1' in origin):
+        response.headers.add('Access-Control-Allow-Origin', origin)
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 # -------------------------
 # Entrypoint (dev)
